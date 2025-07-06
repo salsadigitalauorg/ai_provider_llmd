@@ -183,6 +183,31 @@ class LlmdClient {
   }
 
   /**
+   * Create embeddings.
+   *
+   * @param array $payload
+   *   The embeddings payload.
+   *
+   * @return array
+   *   The embeddings response.
+   *
+   * @throws \Exception
+   *   If the request fails.
+   */
+  public function embeddings(array $payload): array {
+    try {
+      $response = $this->makeRequest('POST', '/v1/embeddings', $payload);
+      return json_decode($response->getBody()->getContents(), TRUE);
+    }
+    catch (RequestException $e) {
+      if ($this->debug) {
+        \Drupal::logger('ai_provider_llmd')->error('Embeddings failed: @error', ['@error' => $e->getMessage()]);
+      }
+      throw new \Exception('Embeddings failed: ' . $e->getMessage());
+    }
+  }
+
+  /**
    * Check the health of the LLM-d orchestrator.
    *
    * @return bool
@@ -379,6 +404,7 @@ class LlmdClient {
       '/v1/models',
       '/v1/chat/completions',
       '/v1/completions',
+      '/v1/embeddings',
     ];
     
     return in_array($endpoint, $allowed_endpoints);

@@ -8,6 +8,9 @@ use Drupal\ai\OperationType\Chat\ChatInput;
 use Drupal\ai\OperationType\Chat\ChatInterface;
 use Drupal\ai\OperationType\Chat\ChatMessage;
 use Drupal\ai\OperationType\Chat\ChatOutput;
+use Drupal\ai\OperationType\Embeddings\EmbeddingsInput;
+use Drupal\ai\OperationType\Embeddings\EmbeddingsInterface;
+use Drupal\ai\OperationType\Embeddings\EmbeddingsOutput;
 use Drupal\ai_provider_llmd\LlmdClient\LlmdClient;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
@@ -22,7 +25,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   id: 'llmd',
   label: new TranslatableMarkup('LLM-d'),
 )]
-class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
+class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, EmbeddingsInterface {
 
   /**
    * The LLM-d client.
@@ -64,6 +67,10 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
         'stream_url' => '/v1/completions',
         'stream_method' => 'POST',
       ],
+      'embeddings' => [
+        'url' => '/v1/embeddings',
+        'method' => 'POST',
+      ],
       'models' => [
         'url' => '/v1/models',
         'method' => 'GET',
@@ -75,47 +82,78 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
    * {@inheritdoc}
    */
   public function getModelSettings(string $model_id, array $generalConfig = []): array {
-    // Return default settings for LLM-d models.
-    return [
-      'temperature' => [
-        'type' => 'float',
-        'default' => 0.7,
-        'min' => 0.0,
-        'max' => 2.0,
-        'step' => 0.1,
-      ],
-      'max_tokens' => [
-        'type' => 'integer',
-        'default' => 1000,
-        'min' => 1,
-        'max' => 4096,
-      ],
-      'top_p' => [
-        'type' => 'float',
-        'default' => 1.0,
-        'min' => 0.0,
-        'max' => 1.0,
-        'step' => 0.01,
-      ],
-      'frequency_penalty' => [
-        'type' => 'float',
-        'default' => 0.0,
-        'min' => -2.0,
-        'max' => 2.0,
-        'step' => 0.1,
-      ],
-      'presence_penalty' => [
-        'type' => 'float',
-        'default' => 0.0,
-        'min' => -2.0,
-        'max' => 2.0,
-        'step' => 0.1,
-      ],
-      'stop' => [
-        'type' => 'array',
-        'default' => [],
-      ],
-    ];
+    // Get operation type from generalConfig if available
+    $operation_type = $generalConfig['operation_type'] ?? 'chat';
+    
+    // Return different settings based on operation type
+    switch ($operation_type) {
+      case 'embeddings':
+        return [
+          'encoding_format' => [
+            'type' => 'select',
+            'default' => 'float',
+            'options' => [
+              'float' => 'Float',
+              'base64' => 'Base64',
+            ],
+          ],
+          'dimensions' => [
+            'type' => 'integer',
+            'default' => NULL,
+            'min' => 1,
+            'max' => 3072,
+            'description' => 'Number of dimensions (optional, depends on model)',
+          ],
+          'user' => [
+            'type' => 'string',
+            'default' => '',
+            'description' => 'Unique identifier for the end-user',
+          ],
+        ];
+        
+      case 'chat':
+      default:
+        return [
+          'temperature' => [
+            'type' => 'float',
+            'default' => 0.7,
+            'min' => 0.0,
+            'max' => 2.0,
+            'step' => 0.1,
+          ],
+          'max_tokens' => [
+            'type' => 'integer',
+            'default' => 1000,
+            'min' => 1,
+            'max' => 4096,
+          ],
+          'top_p' => [
+            'type' => 'float',
+            'default' => 1.0,
+            'min' => 0.0,
+            'max' => 1.0,
+            'step' => 0.01,
+          ],
+          'frequency_penalty' => [
+            'type' => 'float',
+            'default' => 0.0,
+            'min' => -2.0,
+            'max' => 2.0,
+            'step' => 0.1,
+          ],
+          'presence_penalty' => [
+            'type' => 'float',
+            'default' => 0.0,
+            'min' => -2.0,
+            'max' => 2.0,
+            'step' => 0.1,
+          ],
+          'stop' => [
+            'type' => 'array',
+            'default' => [],
+          ],
+        ];
+    }
   }
 
   /**
@@ -132,8 +170,8 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
         $model_id = $model['id'];
         
         // Filter by operation type if specified
-        if ($operation_type && $operation_type !== 'chat') {
-          // Currently only chat is supported
+        if ($operation_type && !in_array($operation_type, ['chat', 'embeddings'])) {
+          // Currently only chat and embeddings are supported
           continue;
         }
         
@@ -152,7 +190,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
    * {@inheritdoc}
    */
   public function getSupportedOperationTypes(): array {
-    return ['chat'];
+    return ['chat', 'embeddings'];
   }
 
   /**
@@ -279,6 +317,111 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
   /**
    * {@inheritdoc}
    */
+  public function embeddings(string|EmbeddingsInput $input, string $model_id, array $tags = []): EmbeddingsOutput {
+    // Use Drupal's validation for model_id
+    if (empty($model_id) || !preg_match('/^[a-zA-Z0-9._-]+$/', $model_id) || strlen($model_id) > 100) {
+      throw new \InvalidArgumentException('Invalid model ID provided.');
+    }
+    
+    $this->loadClient();
+    
+    // Convert input to string if needed.
+    if ($input instanceof EmbeddingsInput) {
+      $input = $input->getPrompt();
+    }
+    
+    // Use Drupal's text processing
+    $input = Html::decodeEntities($input);
+    $input = Unicode::truncate($input, 102400, TRUE, TRUE); // 100KB limit
+    
+    // Skip empty input
+    if (empty(trim($input))) {
+      throw new \InvalidArgumentException('Empty input provided for embeddings.');
+    }
+
+    // Build the payload.
+    $payload = [
+      'model' => $model_id,
+      'input' => $input,
+    ];
+
+    // Add optional parameters from provider configuration.
+    $provider_config = $this->getConfiguration();
+    if (!empty($provider_config)) {
+      $allowed_params = ['encoding_format', 'dimensions', 'user'];
+      foreach ($allowed_params as $param) {
+        if (isset($provider_config[$param])) {
+          $payload[$param] = $provider_config[$param];
+        }
+      }
+    }
+
+    try {
+      $response = $this->llmdClient->embeddings($payload);
+      
+      // Parse the response.
+      if (isset($response['data']) && !empty($response['data'])) {
+        $embedding_data = $response['data'][0];
+        $embedding_vector = $embedding_data['embedding'] ?? [];
+        
+        if (empty($embedding_vector)) {
+          throw new \Exception('No embedding vector returned from LLM-d');
+        }
+        
+        // Create metadata.
+        $metadata = [
+          'model' => $response['model'] ?? $model_id,
+          'usage' => $response['usage'] ?? [],
+          'object' => $embedding_data['object'] ?? 'embedding',
+          'index' => $embedding_data['index'] ?? 0,
+        ];
+        
+        return new EmbeddingsOutput(
+          $embedding_vector,
+          $response,
+          $metadata
+        );
+      }
+      else {
+        throw new \Exception('No embedding data returned from LLM-d');
+      }
+    }
+    catch (\Exception $e) {
+      $this->logger->error('LLM-d embeddings failed: @error', ['@error' => $e->getMessage()]);
+      throw new \Exception('Embeddings failed: ' . $e->getMessage());
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function maxEmbeddingsInput(string $model_id = ''): int {
+    // Default max input length for LLM-d embeddings models.
+    // This could be made configurable or retrieved from the model registry.
+    // Common values: 8191 for OpenAI-compatible models
+    return 8191;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function embeddingsVectorSize(string $model_id): int {
+    // Default vector size mappings for common embedding models.
+    // This should be updated based on your LLM-d model configuration.
+    return match($model_id) {
+      'text-embedding-ada-002', 'text-embedding-3-small' => 1536,
+      'text-embedding-3-large' => 3072,
+      'all-MiniLM-L6-v2' => 384,
+      'all-mpnet-base-v2' => 768,
+      'sentence-transformers/all-MiniLM-L6-v2' => 384,
+      'sentence-transformers/all-mpnet-base-v2' => 768,
+      default => 1536, // Default to common size
+    };
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function isUsable(?string $operation_type = NULL, array $capabilities = []): bool {
     $config = $this->getConfig();
     $host = $config->get('host');
@@ -312,6 +455,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
     return [
       'chat',
       'completion',
+      'embeddings',
       'streaming',
     ];
   }
