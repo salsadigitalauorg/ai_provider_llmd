@@ -1,0 +1,6 @@
+services:
+  ai_provider_llmd.client:
+    class: Drupal\ai_provider_llmd\LlmdClient\LlmdClient
+    arguments:
+      - '@http_client'
+      - '@key.repository'

@@ -1,0 +1,11 @@
+name: 'LLM-d AI Provider'
+description: 'AI Provider for RedHat LLM-d distributed inference framework'
+package: AI Providers
+type: module
+core_version_requirement: ^10.2 || ^11
+
+dependencies:
+  - ai:ai
+  - key:key
+
+version: '1.0.0-dev'

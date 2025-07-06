@@ -1,0 +1,23 @@
+{
+  "name": "drupal/ai_provider_llmd",
+  "description": "AI Provider for RedHat LLM-d distributed inference framework",
+  "type": "drupal-module",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Claude Code",
+      "email": "noreply@anthropic.com"
+    }
+  ],
+  "require": {
+    "drupal/core": "^10.2 || ^11",
+    "drupal/ai": "*",
+    "drupal/key": "*"
+  },
+  "extra": {
+    "drupal": {
+      "version": "1.0.0-dev",
+      "datestamp": "1751770000"
+    }
+  }
+}

@@ -1,0 +1,4 @@
+host: 'http://host.docker.internal:8000'
+api_key: 'llmd_api'
+timeout: 30
+debug: false

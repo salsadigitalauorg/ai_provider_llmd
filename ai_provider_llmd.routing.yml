@@ -1,0 +1,7 @@
+ai_provider_llmd.settings_form:
+  path: '/admin/config/ai/providers/llmd'
+  defaults:
+    _form: '\Drupal\ai_provider_llmd\Form\LlmdConfigForm'
+    _title: 'LLM-d Configuration'
+  requirements:
+    _permission: 'administer ai providers'

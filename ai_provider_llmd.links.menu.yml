@@ -1,0 +1,5 @@
+ai_provider_llmd.settings_menu:
+  title: "LLM-d Provider Configuration"
+  description: "Configure LLM-d AI Provider settings"
+  route_name: ai_provider_llmd.settings_form
+  parent: ai.admin_providers
