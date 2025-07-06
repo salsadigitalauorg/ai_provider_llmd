@@ -227,13 +227,13 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
       'stream' => FALSE,
     ];
 
-    // Add optional parameters from configuration.
-    $config = $input->getConfiguration();
-    if (!empty($config)) {
+    // Add optional parameters from provider configuration.
+    $provider_config = $this->getConfiguration();
+    if (!empty($provider_config)) {
       $allowed_params = ['temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty', 'stop'];
       foreach ($allowed_params as $param) {
-        if (isset($config[$param])) {
-          $payload[$param] = $config[$param];
+        if (isset($provider_config[$param])) {
+          $payload[$param] = $provider_config[$param];
         }
       }
     }
@@ -250,7 +250,6 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
         $response_message = new ChatMessage(
           'assistant',
           $message_content,
-          '',
           []
         );
         
@@ -262,9 +261,9 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface {
         ];
         
         return new ChatOutput(
-          [$response_message],
-          $metadata,
-          $response
+          $response_message,
+          $response,
+          $metadata
         );
       }
       else {
