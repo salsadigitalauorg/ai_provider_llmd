@@ -180,7 +180,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       }
     }
     catch (\Exception $e) {
-      $this->logger->error('Failed to load models from LLM-d: @error', ['@error' => $e->getMessage()]);
+      $this->loggerFactory->get('ai_provider_llmd')->error('Failed to load models from LLM-d: @error', ['@error' => $e->getMessage()]);
     }
     
     return $models;
@@ -309,7 +309,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       }
     }
     catch (\Exception $e) {
-      $this->logger->error('LLM-d chat completion failed: @error', ['@error' => $e->getMessage()]);
+      $this->loggerFactory->get('ai_provider_llmd')->error('LLM-d chat completion failed: @error', ['@error' => $e->getMessage()]);
       throw new \Exception('Chat completion failed: ' . $e->getMessage());
     }
   }
@@ -387,7 +387,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       }
     }
     catch (\Exception $e) {
-      $this->logger->error('LLM-d embeddings failed: @error', ['@error' => $e->getMessage()]);
+      $this->loggerFactory->get('ai_provider_llmd')->error('LLM-d embeddings failed: @error', ['@error' => $e->getMessage()]);
       throw new \Exception('Embeddings failed: ' . $e->getMessage());
     }
   }
@@ -491,7 +491,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       // If a string is provided, we could potentially update the API key,
       // but for security reasons, we'll log this and recommend using
       // the proper configuration interface.
-      $this->logger->info('Authentication update attempted for LLM-d provider. Use configuration interface instead.');
+      $this->loggerFactory->get('ai_provider_llmd')->info('Authentication update attempted for LLM-d provider. Use configuration interface instead.');
     }
   }
 
