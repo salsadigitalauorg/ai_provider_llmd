@@ -163,7 +163,14 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
   public function getConfiguredModels(?string $operation_type = NULL, array $capabilities = []): array {
     $cache_key = 'ai_provider_llmd:models';
     $cache = $this->cacheBackend->get($cache_key);
-    $all_models = $cache ? $cache->data : $this->fetchModelsFromProvider();
+    $all_models = [];
+    try {
+      $all_models = $cache ? $cache->data : $this->fetchModelsFromProvider();
+    }
+    catch (\Exception $e) {
+      $this->loggerFactory->get('ai_provider_llmd')
+        ->error('Failed to load models from LLM-d: @error', ['@error' => $e->getMessage()]);
+    }
 
     // Currently only chat and embeddings are supported.
     if ($operation_type && !in_array($operation_type, ['chat', 'embeddings'])) {
@@ -179,24 +186,17 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
    * @return array
    *   Array of available models.
    */
-  protected function fetchModelsFromProvider(): array {
+  public function fetchModelsFromProvider(): array {
     $models = [];
-    try {
-      $this->loadClient();
-      $llmd_models = $this->llmdClient->getModels();
-      foreach ($llmd_models as $model) {
-        $model_id = $model['id'];
-        // Simple key-value format for dropdown compatibility.
-        $models[$model_id] = $model_id;
-      }
-
-      $cache_key = 'ai_provider_llmd:models';
-      $this->cacheBackend->set($cache_key, $models, CacheBackendInterface::CACHE_PERMANENT, ['ai_provider_llmd']);
+    $this->loadClient();
+    $llmd_models = $this->llmdClient->getModels();
+    foreach ($llmd_models as $model) {
+      $model_id = $model['id'];
+      // Simple key-value format for dropdown compatibility.
+      $models[$model_id] = $model_id;
     }
-    catch (\Exception $e) {
-      $this->loggerFactory->get('ai_provider_llmd')
-        ->error('Failed to load models from LLM-d: @error', ['@error' => $e->getMessage()]);
-    }
+    $cache_key = 'ai_provider_llmd:models';
+    $this->cacheBackend->set($cache_key, $models, CacheBackendInterface::CACHE_PERMANENT, ['ai_provider_llmd']);
 
     return $models;
   }

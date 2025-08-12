@@ -2,7 +2,9 @@
 
 namespace Drupal\ai_provider_llmd\Form;
 
+use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai_provider_llmd\LlmdClient\LlmdClient;
+use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Form\ConfigFormBase;
@@ -22,35 +24,23 @@ class LlmdConfigForm extends ConfigFormBase {
   const CONFIG_NAME = 'ai_provider_llmd.settings';
 
   /**
-   * The LLM-d client.
-   *
-   * @var \Drupal\ai_provider_llmd\LlmdClient\LlmdClient
-   */
-  protected LlmdClient $llmdClient;
-
-  /**
-   * The key repository.
-   *
-   * @var \Drupal\key\KeyRepositoryInterface
-   */
-  protected KeyRepositoryInterface $keyRepository;
-
-  /**
    * Constructs a new LlmdConfigForm.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The config factory.
    * @param \Drupal\Core\Config\TypedConfigManagerInterface $typed_config_manager
    *   The typed config manager.
-   * @param \Drupal\ai_provider_llmd\LlmdClient\LlmdClient $llmd_client
+   * @param \Drupal\ai_provider_llmd\LlmdClient\LlmdClient $llmdClient
    *   The LLM-d client.
-   * @param \Drupal\key\KeyRepositoryInterface $key_repository
+   * @param \Drupal\key\KeyRepositoryInterface $keyRepository
    *   The key repository.
+   * @param \Drupal\Core\Cache\CacheBackendInterface $cacheBackend
+   *   The cache backend.
+   * @param \Drupal\ai\AiProviderPluginManager $providerManager
+   *   Plugin manager.
    */
-  public function __construct(ConfigFactoryInterface $config_factory, TypedConfigManagerInterface $typed_config_manager, LlmdClient $llmd_client, KeyRepositoryInterface $key_repository) {
+  public function __construct(ConfigFactoryInterface $config_factory, TypedConfigManagerInterface $typed_config_manager, protected LlmdClient $llmdClient, protected KeyRepositoryInterface $keyRepository, protected CacheBackendInterface $cacheBackend, protected AiProviderPluginManager $providerManager) {
     parent::__construct($config_factory, $typed_config_manager);
-    $this->llmdClient = $llmd_client;
-    $this->keyRepository = $key_repository;
   }
 
   /**
@@ -61,7 +51,9 @@ class LlmdConfigForm extends ConfigFormBase {
       $container->get('config.factory'),
       $container->get('config.typed'),
       $container->get('ai_provider_llmd.client'),
-      $container->get('key.repository')
+      $container->get('key.repository'),
+      $container->get('cache.default'),
+      $container->get('ai.provider'),
     );
   }
 
@@ -101,7 +93,7 @@ class LlmdConfigForm extends ConfigFormBase {
 
     // Get available keys for the select list.
     $key_options = $this->getKeyOptions();
-    
+
     $form['connection']['api_key'] = [
       '#type' => 'select',
       '#title' => $this->t('API Key'),
@@ -152,6 +144,22 @@ class LlmdConfigForm extends ConfigFormBase {
       '#attributes' => ['class' => ['button', 'button--primary']],
     ];
 
+    // Model management section.
+    $form['models'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Model Management'),
+      '#open' => FALSE,
+    ];
+
+    $form['models']['refresh_models'] = [
+      '#type' => 'submit',
+      '#value' => $this->t('Refresh Models'),
+      '#submit' => ['::refreshModels'],
+      '#limit_validation_errors' => [['host'], ['api_key'], ['timeout']],
+      '#attributes' => ['class' => ['button']],
+      '#description' => $this->t('Clear the cached models and fetch fresh data from the LLM-d orchestrator.'),
+    ];
+
     return parent::buildForm($form, $form_state);
   }
 
@@ -180,7 +188,7 @@ class LlmdConfigForm extends ConfigFormBase {
     }
 
     // Log security event
-    \Drupal::logger('ai_provider_llmd')->info('Connection test attempted by user @uid for host @host', [
+    $this->logger('ai_provider_llmd')->info('Connection test attempted by user @uid for host @host', [
       '@uid' => $this->currentUser()->id(),
       '@host' => $host,
     ]);
@@ -188,47 +196,47 @@ class LlmdConfigForm extends ConfigFormBase {
     try {
       // Configure the client with form values.
       $this->llmdClient->setConfiguration($host, $api_key_id, $timeout, TRUE);
-      
+
       // Test health endpoint.
       if ($this->llmdClient->health()) {
         $this->messenger()->addStatus($this->t('Successfully connected to LLM-d orchestrator.'));
-        
+
         // Try to get models to verify full functionality.
         try {
           $models = $this->llmdClient->getModels();
           $model_count = count($models);
           $this->messenger()->addStatus($this->t('Found @count available models.', ['@count' => $model_count]));
-          
+
           if ($model_count > 0) {
             $model_names = array_column($models, 'id');
             $this->messenger()->addStatus($this->t('Available models: @models', [
               '@models' => implode(', ', array_slice($model_names, 0, 5)) . ($model_count > 5 ? '...' : '')
             ]));
           }
-          
+
           // Log successful connection
-          \Drupal::logger('ai_provider_llmd')->info('Successful connection test to @host with @count models', [
+          $this->logger('ai_provider_llmd')->info('Successful connection test to @host with @count models', [
             '@host' => $host,
             '@count' => $model_count,
           ]);
         }
         catch (\Exception $e) {
           $this->messenger()->addWarning($this->t('Connected to orchestrator but failed to retrieve models.'));
-          \Drupal::logger('ai_provider_llmd')->warning('Connection test: Health OK but model retrieval failed for @host', [
+          $this->logger('ai_provider_llmd')->warning('Connection test: Health OK but model retrieval failed for @host', [
             '@host' => $host,
           ]);
         }
       }
       else {
         $this->messenger()->addError($this->t('Failed to connect to LLM-d orchestrator. Health check failed.'));
-        \Drupal::logger('ai_provider_llmd')->warning('Connection test failed: Health check failed for @host', [
+        $this->logger('ai_provider_llmd')->warning('Connection test failed: Health check failed for @host', [
           '@host' => $host,
         ]);
       }
     }
     catch (\Exception $e) {
       $this->messenger()->addError($this->t('Connection test failed.'));
-      \Drupal::logger('ai_provider_llmd')->error('Connection test failed for @host: @error', [
+      $this->logger('ai_provider_llmd')->error('Connection test failed for @host: @error', [
         '@host' => $host,
         '@error' => $e->getMessage(),
       ]);
@@ -292,12 +300,32 @@ class LlmdConfigForm extends ConfigFormBase {
   protected function getKeyOptions(): array {
     $options = [];
     $keys = $this->keyRepository->getKeys();
-    
+
     foreach ($keys as $key) {
       $options[$key->id()] = $key->label();
     }
-    
+
     return $options;
+  }
+
+  /**
+   * Refresh the cached models from the LLM-d orchestrator.
+   *
+   * @param array $form
+   *   The form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public function refreshModels(array &$form, FormStateInterface $form_state): void {
+    $config = $this->configFactory->get(static::CONFIG_NAME);
+    /** @var \Drupal\ai_provider_llmd\Plugin\AiProvider\LlmdAiProvider $llmd_provider */
+    $llmd_provider = $this->providerManager->createInstance('llmd', $config->getRawData());
+    try {
+     $llmd_provider->fetchModelsFromProvider();
+    }
+    catch (\Exception $e) {
+      $this->messenger()->addError(sprintf('Failed to load models from LLM-d: %s', $e->getMessage()));
+    }
   }
 
 }
