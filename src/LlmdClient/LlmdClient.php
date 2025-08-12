@@ -83,17 +83,17 @@ class LlmdClient {
    *   If configuration parameters are invalid.
    */
   public function setConfiguration(string $base_url, string $api_key_id, int $timeout = 30, bool $debug = FALSE): void {
-    // Validate and sanitize base URL
+    // Validate and sanitize base URL.
     $this->validateAndSetBaseUrl($base_url);
-    
+
     // Validate timeout (between 1 and 300 seconds)
     if ($timeout < 1 || $timeout > 300) {
       throw new \InvalidArgumentException('Timeout must be between 1 and 300 seconds.');
     }
     $this->timeout = $timeout;
     $this->debug = $debug;
-    
-    // Get and validate the API key from the key module
+
+    // Get and validate the API key from the key module.
     $this->validateAndSetApiKey($api_key_id);
   }
 
@@ -110,7 +110,7 @@ class LlmdClient {
     try {
       $response = $this->makeRequest('GET', '/v1/models');
       $data = json_decode($response->getBody()->getContents(), TRUE);
-      
+
       if (isset($data['data']) && is_array($data['data'])) {
         return array_map(function ($model) {
           return [
@@ -121,7 +121,7 @@ class LlmdClient {
           ];
         }, $data['data']);
       }
-      
+
       return [];
     }
     catch (RequestException $e) {
@@ -244,16 +244,16 @@ class LlmdClient {
    *   If the request fails.
    */
   protected function makeRequest(string $method, string $endpoint, ?array $payload = NULL): ResponseInterface {
-    // Validate endpoint
+    // Validate endpoint.
     if (!$this->isValidEndpoint($endpoint)) {
       throw new \InvalidArgumentException('Invalid API endpoint provided.');
     }
-    
-    // Sanitize payload
+
+    // Sanitize payload.
     if ($payload !== NULL) {
       $payload = $this->sanitizePayload($payload);
     }
-    
+
     $options = [
       'timeout' => $this->timeout,
       'headers' => [
@@ -262,21 +262,22 @@ class LlmdClient {
         'X-Content-Type-Options' => 'nosniff',
         'X-Frame-Options' => 'DENY',
       ],
-      'verify' => TRUE, // Enforce SSL certificate verification
+      // Enforce SSL certificate verification.
+      'verify' => TRUE,
     ];
 
-    // Add API key if available
+    // Add API key if available.
     if (!empty($this->apiKey)) {
       $options['headers']['X-API-Key'] = $this->apiKey;
     }
 
-    // Add JSON payload for POST requests
+    // Add JSON payload for POST requests.
     if ($payload !== NULL) {
       $options['json'] = $payload;
     }
 
     $url = $this->baseUrl . $endpoint;
-    
+
     // Security logging for debugging (without sensitive data)
     if ($this->debug) {
       \Drupal::logger('ai_provider_llmd')->debug('Making @method request to @url', [
@@ -284,8 +285,8 @@ class LlmdClient {
         '@url' => $url,
       ]);
     }
-    
-    // Log security events
+
+    // Log security events.
     \Drupal::logger('ai_provider_llmd')->info('API request: @method @endpoint', [
       '@method' => $method,
       '@endpoint' => $endpoint,
@@ -304,36 +305,36 @@ class LlmdClient {
    *   If the URL is invalid or potentially malicious.
    */
   private function validateAndSetBaseUrl(string $base_url): void {
-    // Remove any trailing slashes
+    // Remove any trailing slashes.
     $base_url = rtrim($base_url, '/');
-    
-    // Validate URL format
+
+    // Validate URL format.
     if (!filter_var($base_url, FILTER_VALIDATE_URL)) {
       throw new \InvalidArgumentException('Invalid URL format provided.');
     }
-    
+
     $parsed_url = parse_url($base_url);
-    
-    // Ensure HTTPS is used for production
+
+    // Ensure HTTPS is used for production.
     if (!isset($parsed_url['scheme']) || !in_array($parsed_url['scheme'], ['http', 'https'])) {
       throw new \InvalidArgumentException('Only HTTP and HTTPS protocols are allowed.');
     }
-    
-    // Check for SSRF protection - block internal IPs
+
+    // Check for SSRF protection - block internal IPs.
     if (isset($parsed_url['host'])) {
       $host = $parsed_url['host'];
-      
-      // Allow localhost and host.docker.internal for development
+
+      // Allow localhost and host.docker.internal for development.
       $allowed_dev_hosts = ['localhost', '127.0.0.1', 'host.docker.internal'];
-      
+
       if (!in_array($host, $allowed_dev_hosts) && $this->isInternalIp($host)) {
         throw new \InvalidArgumentException('Requests to internal IP addresses are not allowed.');
       }
     }
-    
+
     $this->baseUrl = $base_url;
   }
-  
+
   /**
    * Validate and set the API key.
    *
@@ -347,25 +348,25 @@ class LlmdClient {
     if (empty($api_key_id)) {
       throw new \InvalidArgumentException('API key ID cannot be empty.');
     }
-    
+
     $key = $this->keyRepository->getKey($api_key_id);
     if (!$key) {
       throw new \InvalidArgumentException('API key not found in key repository.');
     }
-    
+
     $api_key = $key->getKeyValue();
     if (empty($api_key)) {
       throw new \InvalidArgumentException('API key value is empty.');
     }
-    
+
     // Basic API key format validation (adjust as needed)
     if (strlen($api_key) < 8) {
       throw new \InvalidArgumentException('API key appears to be too short.');
     }
-    
+
     $this->apiKey = $api_key;
   }
-  
+
   /**
    * Check if an IP address is internal/private.
    *
@@ -376,18 +377,18 @@ class LlmdClient {
    *   TRUE if the IP is internal/private.
    */
   private function isInternalIp(string $host): bool {
-    // Convert hostname to IP if needed
+    // Convert hostname to IP if needed.
     $ip = gethostbyname($host);
-    
+
     if ($ip === $host && !filter_var($ip, FILTER_VALIDATE_IP)) {
-      // If gethostbyname didn't resolve, it might be a domain
+      // If gethostbyname didn't resolve, it might be a domain.
       return FALSE;
     }
-    
-    // Check for private/internal IP ranges
+
+    // Check for private/internal IP ranges.
     return !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
   }
-  
+
   /**
    * Validate API endpoint.
    *
@@ -398,7 +399,7 @@ class LlmdClient {
    *   TRUE if valid.
    */
   private function isValidEndpoint(string $endpoint): bool {
-    // Allow only specific endpoints
+    // Allow only specific endpoints.
     $allowed_endpoints = [
       '/health',
       '/v1/models',
@@ -406,10 +407,10 @@ class LlmdClient {
       '/v1/completions',
       '/v1/embeddings',
     ];
-    
+
     return in_array($endpoint, $allowed_endpoints);
   }
-  
+
   /**
    * Validate payload data structure.
    *
@@ -420,11 +421,12 @@ class LlmdClient {
    *   The validated payload.
    */
   private function sanitizePayload(array $payload): array {
-    // Basic validation - ensure payload is not excessively large
-    if (json_encode($payload) && strlen(json_encode($payload)) > 1048576) { // 1MB limit
+    // Basic validation - ensure payload is not excessively large.
+    // 1MB limit.
+    if (json_encode($payload) && strlen(json_encode($payload)) > 1048576) {
       throw new \InvalidArgumentException('Payload too large.');
     }
-    
+
     return $payload;
   }
 
