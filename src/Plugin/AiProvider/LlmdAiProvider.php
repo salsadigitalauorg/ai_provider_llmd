@@ -224,7 +224,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       $input = Html::decodeEntities($input);
       $input = Unicode::truncate($input, 102400, TRUE, TRUE);
       $input = new ChatInput([
-        new ChatMessage('user', $input, []),
+        new ChatMessage('user', $input)
       ]);
     }
     elseif (is_array($input)) {
@@ -236,16 +236,15 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
           $role = Html::escape(trim($message['role']));
           $content = Html::decodeEntities($message['content']);
           $content = Unicode::truncate($content, 102400, TRUE, TRUE);
-          $name = isset($message['name']) ? Html::escape(trim($message['name'])) : '';
 
-          // Validate role against allowed values.
+          // Validate role against allowed values
           $allowed_roles = ['system', 'user', 'assistant', 'function'];
           if (!in_array(strtolower($role), $allowed_roles)) {
             // Default to user role.
             $role = 'user';
           }
 
-          $chat_messages[] = new ChatMessage($role, $content, $name, $message['metadata'] ?? []);
+          $chat_messages[] = new ChatMessage($role, $content);
         }
       }
       $input = new ChatInput($chat_messages);
@@ -304,11 +303,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       if (isset($response['choices']) && !empty($response['choices'])) {
         $choice = $response['choices'][0];
         $message_content = $choice['message']['content'] ?? '';
-        $response_message = new ChatMessage(
-          'assistant',
-          $message_content,
-          []
-        );
+        $response_message = new ChatMessage('assistant', $message_content);
         $metadata = [
           'model' => $response['model'] ?? $model_id,
           'usage' => $response['usage'] ?? [],
