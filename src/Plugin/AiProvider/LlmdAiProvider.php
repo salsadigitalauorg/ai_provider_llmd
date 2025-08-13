@@ -12,6 +12,7 @@ use Drupal\ai\OperationType\Embeddings\EmbeddingsInput;
 use Drupal\ai\OperationType\Embeddings\EmbeddingsInterface;
 use Drupal\ai\OperationType\Embeddings\EmbeddingsOutput;
 use Drupal\ai_provider_llmd\LlmdClient\LlmdClient;
+use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Component\Utility\Html;
@@ -82,10 +83,10 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
    * {@inheritdoc}
    */
   public function getModelSettings(string $model_id, array $generalConfig = []): array {
-    // Get operation type from generalConfig if available
+    // Get operation type from generalConfig if available.
     $operation_type = $generalConfig['operation_type'] ?? 'chat';
 
-    // Return different settings based on operation type
+    // Return different settings based on operation type.
     switch ($operation_type) {
       case 'embeddings':
         return [
@@ -160,28 +161,42 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
    * {@inheritdoc}
    */
   public function getConfiguredModels(?string $operation_type = NULL, array $capabilities = []): array {
-    $models = [];
-
+    $cache_key = 'ai_provider_llmd:models';
+    $cache = $this->cacheBackend->get($cache_key);
+    $all_models = [];
     try {
-      $this->loadClient();
-      $llmd_models = $this->llmdClient->getModels();
-
-      foreach ($llmd_models as $model) {
-        $model_id = $model['id'];
-
-        // Filter by operation type if specified
-        if ($operation_type && !in_array($operation_type, ['chat', 'embeddings'])) {
-          // Currently only chat and embeddings are supported
-          continue;
-        }
-
-        // Simple key-value format for dropdown compatibility
-        $models[$model_id] = $model_id;
-      }
+      $all_models = $cache ? $cache->data : $this->fetchModelsFromProvider();
     }
     catch (\Exception $e) {
-      $this->loggerFactory->get('ai_provider_llmd')->error('Failed to load models from LLM-d: @error', ['@error' => $e->getMessage()]);
+      $this->loggerFactory->get('ai_provider_llmd')
+        ->error('Failed to load models from LLM-d: @error', ['@error' => $e->getMessage()]);
     }
+
+    // Currently only chat and embeddings are supported.
+    if ($operation_type && !in_array($operation_type, ['chat', 'embeddings'])) {
+      return [];
+    }
+
+    return $all_models;
+  }
+
+  /**
+   * Fetch models from the LLM-d provider and cache them.
+   *
+   * @return array
+   *   Array of available models.
+   */
+  public function fetchModelsFromProvider(): array {
+    $models = [];
+    $this->loadClient();
+    $llmd_models = $this->llmdClient->getModels();
+    foreach ($llmd_models as $model) {
+      $model_id = $model['id'];
+      // Simple key-value format for dropdown compatibility.
+      $models[$model_id] = $model_id;
+    }
+    $cache_key = 'ai_provider_llmd:models';
+    $this->cacheBackend->set($cache_key, $models, CacheBackendInterface::CACHE_PERMANENT, ['ai_provider_llmd']);
 
     return $models;
   }
@@ -197,7 +212,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
    * {@inheritdoc}
    */
   public function chat(ChatInput|array|string $input, string $model_id, array $tags = []): ChatOutput {
-    // Use Drupal's validation for model_id
+    // Use Drupal's validation for model_id.
     if (empty($model_id) || !preg_match('/^[a-zA-Z0-9._-]+$/', $model_id) || strlen($model_id) > 100) {
       throw new \InvalidArgumentException('Invalid model ID provided.');
     }
@@ -206,9 +221,8 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
 
     // Convert input to ChatInput object if needed.
     if (is_string($input)) {
-      // Use Drupal's text processing
       $input = Html::decodeEntities($input);
-      $input = Unicode::truncate($input, 102400, TRUE, TRUE); // 100KB limit
+      $input = Unicode::truncate($input, 102400, TRUE, TRUE);
       $input = new ChatInput([
         new ChatMessage('user', $input)
       ]);
@@ -218,7 +232,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       $chat_messages = [];
       foreach ($input as $message) {
         if (is_array($message) && isset($message['role'], $message['content'])) {
-          // Use Drupal's built-in validation
+          // Use Drupal's built-in validation.
           $role = Html::escape(trim($message['role']));
           $content = Html::decodeEntities($message['content']);
           $content = Unicode::truncate($content, 102400, TRUE, TRUE);
@@ -226,7 +240,8 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
           // Validate role against allowed values
           $allowed_roles = ['system', 'user', 'assistant', 'function'];
           if (!in_array(strtolower($role), $allowed_roles)) {
-            $role = 'user'; // Default to user role
+            // Default to user role.
+            $role = 'user';
           }
 
           $chat_messages[] = new ChatMessage($role, $content);
@@ -241,7 +256,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       $role = $message->getRole();
       $content = $message->getText();
 
-      // Skip empty messages
+      // Skip empty messages.
       if (empty($role) || empty(trim($content))) {
         continue;
       }
@@ -252,7 +267,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       ];
     }
 
-    // Ensure we have at least one valid message
+    // Ensure we have at least one valid message.
     if (empty($messages)) {
       throw new \InvalidArgumentException('No valid messages provided for chat completion.');
     }
@@ -267,7 +282,14 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
     // Add optional parameters from provider configuration.
     $provider_config = $this->getConfiguration();
     if (!empty($provider_config)) {
-      $allowed_params = ['temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty', 'stop'];
+      $allowed_params = [
+        'temperature',
+        'max_tokens',
+        'top_p',
+        'frequency_penalty',
+        'presence_penalty',
+        'stop',
+      ];
       foreach ($allowed_params as $param) {
         if (isset($provider_config[$param])) {
           $payload[$param] = $provider_config[$param];
@@ -299,7 +321,8 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       }
     }
     catch (\Exception $e) {
-      $this->loggerFactory->get('ai_provider_llmd')->error('LLM-d chat completion failed: @error', ['@error' => $e->getMessage()]);
+      $this->loggerFactory->get('ai_provider_llmd')
+        ->error('LLM-d chat completion failed: @error', ['@error' => $e->getMessage()]);
       throw new \Exception('Chat completion failed: ' . $e->getMessage());
     }
   }
@@ -308,7 +331,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
    * {@inheritdoc}
    */
   public function embeddings(string|EmbeddingsInput $input, string $model_id, array $tags = []): EmbeddingsOutput {
-    // Use Drupal's validation for model_id
+    // Use Drupal's validation for model_id.
     if (empty($model_id) || !preg_match('/^[a-zA-Z0-9._-]+$/', $model_id) || strlen($model_id) > 100) {
       throw new \InvalidArgumentException('Invalid model ID provided.');
     }
@@ -320,7 +343,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       $input = $input->getPrompt();
     }
 
-    // Use Drupal's text processing
+    // Use Drupal's text processing.
     $input = Html::decodeEntities($input);
     $input = Unicode::truncate($input, 102400, TRUE, TRUE); // 100KB limit
 
@@ -377,7 +400,8 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       }
     }
     catch (\Exception $e) {
-      $this->loggerFactory->get('ai_provider_llmd')->error('LLM-d embeddings failed: @error', ['@error' => $e->getMessage()]);
+      $this->loggerFactory->get('ai_provider_llmd')
+        ->error('LLM-d embeddings failed: @error', ['@error' => $e->getMessage()]);
       throw new \Exception('Embeddings failed: ' . $e->getMessage());
     }
   }
@@ -388,7 +412,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
   public function maxEmbeddingsInput(string $model_id = ''): int {
     // Default max input length for LLM-d embeddings models.
     // This could be made configurable or retrieved from the model registry.
-    // Common values: 8191 for OpenAI-compatible models
+    // Common values: 8191 for OpenAI-compatible models.
     return 8191;
   }
 
@@ -398,14 +422,15 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
   public function embeddingsVectorSize(string $model_id): int {
     // Default vector size mappings for common embedding models.
     // This should be updated based on your LLM-d model configuration.
-    return match($model_id) {
+    return match ($model_id) {
       'text-embedding-ada-002', 'text-embedding-3-small' => 1536,
       'text-embedding-3-large' => 3072,
       'all-MiniLM-L6-v2' => 384,
       'all-mpnet-base-v2' => 768,
       'sentence-transformers/all-MiniLM-L6-v2' => 384,
       'sentence-transformers/all-mpnet-base-v2' => 768,
-      default => 1536, // Default to common size
+      // Default to common size.
+      default => 1536,
     };
   }
 
@@ -427,15 +452,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       return FALSE;
     }
 
-    // Optional: Test connection to verify usability.
-    try {
-      $this->loadClient();
-      return $this->llmdClient->health();
-    }
-    catch (\Exception $e) {
-      $this->loggerFactory->get('ai_provider_llmd')->warning('LLM-d provider not usable: @error', ['@error' => $e->getMessage()]);
-      return FALSE;
-    }
+    return TRUE;
   }
 
   /**
@@ -476,12 +493,12 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
     // the Key module and configuration. This method is implemented
     // for interface compliance but authentication is managed
     // through the configuration system.
-
     if (is_string($authentication)) {
       // If a string is provided, we could potentially update the API key,
       // but for security reasons, we'll log this and recommend using
       // the proper configuration interface.
-      $this->loggerFactory->get('ai_provider_llmd')->info('Authentication update attempted for LLM-d provider. Use configuration interface instead.');
+      $this->loggerFactory->get('ai_provider_llmd')
+        ->info('Authentication update attempted for LLM-d provider. Use configuration interface instead.');
     }
   }
 
@@ -505,6 +522,5 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
 
     $this->llmdClient->setConfiguration($host, $api_key_id, $timeout, $debug);
   }
-
 
 }
