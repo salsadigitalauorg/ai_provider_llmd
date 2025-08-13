@@ -350,10 +350,9 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
 
     // Use Drupal's text processing.
     $input = Html::decodeEntities($input);
-    // 100KB limit
-    $input = Unicode::truncate($input, 102400, TRUE, TRUE);
+    $input = Unicode::truncate($input, 102400, TRUE, TRUE); // 100KB limit
 
-    // Skip empty input.
+    // Skip empty input
     if (empty(trim($input))) {
       throw new \InvalidArgumentException('Empty input provided for embeddings.');
     }
@@ -458,16 +457,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       return FALSE;
     }
 
-    // Optional: Test connection to verify usability.
-    try {
-      $this->loadClient();
-      return $this->llmdClient->health();
-    }
-    catch (\Exception $e) {
-      $this->loggerFactory->get('ai_provider_llmd')
-        ->warning('LLM-d provider not usable: @error', ['@error' => $e->getMessage()]);
-      return FALSE;
-    }
+    return TRUE;
   }
 
   /**
