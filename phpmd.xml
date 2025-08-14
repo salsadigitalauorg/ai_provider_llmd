@@ -1,0 +1,132 @@
+<?xml version="1.0"?>
+<ruleset name="AI Provider LLMD PHPMD Ruleset"
+         xmlns="http://pmd.sf.net/ruleset/1.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sf.net/ruleset/1.0.0 http://pmd.sf.net/ruleset_xml_schema.xsd"
+         xsi:noNamespaceSchemaLocation="http://pmd.sf.net/ruleset_xml_schema.xsd">
+  
+  <description>
+    PHP Mess Detector ruleset for AI Provider LLMD module.
+  </description>
+  
+  <!-- Clean Code Rules -->
+  <rule ref="rulesets/cleancode.xml">
+    <!-- Allow else expressions for readability -->
+    <exclude name="ElseExpression"/>
+    <!-- Static access is common in Drupal -->
+    <exclude name="StaticAccess"/>
+  </rule>
+  
+  <!-- Code Size Rules -->
+  <rule ref="rulesets/codesize.xml">
+    <!-- Adjust complexity thresholds for Drupal -->
+    <exclude name="CyclomaticComplexity"/>
+    <exclude name="NPathComplexity"/>
+    <exclude name="ExcessiveMethodLength"/>
+    <exclude name="ExcessiveClassLength"/>
+    <exclude name="ExcessiveParameterList"/>
+    <exclude name="ExcessivePublicCount"/>
+    <exclude name="TooManyFields"/>
+    <exclude name="TooManyMethods"/>
+    <exclude name="TooManyPublicMethods"/>
+    <exclude name="ExcessiveClassComplexity"/>
+  </rule>
+  
+  <!-- Add custom rules with Drupal-friendly settings -->
+  <rule ref="rulesets/codesize.xml/CyclomaticComplexity">
+    <properties>
+      <property name="reportLevel" value="20"/>
+    </properties>
+  </rule>
+  
+  <rule ref="rulesets/codesize.xml/NPathComplexity">
+    <properties>
+      <property name="minimum" value="200"/>
+    </properties>
+  </rule>
+  
+  <rule ref="rulesets/codesize.xml/ExcessiveMethodLength">
+    <properties>
+      <property name="minimum" value="100"/>
+    </properties>
+  </rule>
+  
+  <rule ref="rulesets/codesize.xml/ExcessiveClassLength">
+    <properties>
+      <property name="minimum" value="1000"/>
+    </properties>
+  </rule>
+  
+  <rule ref="rulesets/codesize.xml/ExcessiveParameterList">
+    <properties>
+      <property name="minimum" value="10"/>
+    </properties>
+  </rule>
+  
+  <!-- Controversial Rules (optional) -->
+  <rule ref="rulesets/controversial.xml">
+    <!-- Superglobals are used in Drupal -->
+    <exclude name="Superglobals"/>
+    <!-- Camel case is not always used in Drupal -->
+    <exclude name="CamelCaseClassName"/>
+    <exclude name="CamelCasePropertyName"/>
+    <exclude name="CamelCaseMethodName"/>
+    <exclude name="CamelCaseParameterName"/>
+    <exclude name="CamelCaseVariableName"/>
+  </rule>
+  
+  <!-- Design Rules -->
+  <rule ref="rulesets/design.xml">
+    <!-- Exit expressions are sometimes needed -->
+    <exclude name="ExitExpression"/>
+    <!-- Eval is sometimes used in Drupal for dynamic code -->
+    <exclude name="EvalExpression"/>
+    <!-- Goto is not commonly used but not forbidden -->
+    <exclude name="GotoStatement"/>
+    <!-- Number of children can be high in complex hierarchies -->
+    <exclude name="NumberOfChildren"/>
+    <!-- Depth of inheritance is acceptable in Drupal -->
+    <exclude name="DepthOfInheritance"/>
+    <!-- Coupling is often high in Drupal due to service dependencies -->
+    <exclude name="CouplingBetweenObjects"/>
+  </rule>
+  
+  <!-- Naming Rules -->
+  <rule ref="rulesets/naming.xml">
+    <!-- Short variables are sometimes OK -->
+    <exclude name="ShortVariable"/>
+    <!-- Long variable names are OK in Drupal -->
+    <exclude name="LongVariable"/>
+    <!-- Short method names can be OK -->
+    <exclude name="ShortMethodName"/>
+    <!-- Constructors with same name as class are deprecated in PHP 7+ -->
+    <exclude name="ConstructorWithNameAsEnclosingClass"/>
+    <!-- Boolean method names don't always need is/has prefix -->
+    <exclude name="BooleanGetMethodName"/>
+  </rule>
+  
+  <!-- Custom naming rules with Drupal-friendly settings -->
+  <rule ref="rulesets/naming.xml/ShortVariable">
+    <properties>
+      <property name="minimum" value="2"/>
+    </properties>
+  </rule>
+  
+  <rule ref="rulesets/naming.xml/LongVariable">
+    <properties>
+      <property name="maximum" value="30"/>
+    </properties>
+  </rule>
+  
+  <rule ref="rulesets/naming.xml/ShortMethodName">
+    <properties>
+      <property name="minimum" value="2"/>
+    </properties>
+  </rule>
+  
+  <!-- Unused Code Rules -->
+  <rule ref="rulesets/unusedcode.xml">
+    <!-- Unused parameters are sometimes required by interfaces -->
+    <exclude name="UnusedFormalParameter"/>
+  </rule>
+</ruleset>

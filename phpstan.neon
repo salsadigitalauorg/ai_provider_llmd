@@ -1,0 +1,26 @@
+parameters:
+  level: 5
+  paths:
+    - src
+    - ai_provider_llmd.module
+  scanFiles:
+    - ai_provider_llmd.module
+  scanDirectories:
+    - ../../core/lib
+    - ../ai/src
+  excludePaths:
+    - */vendor/*
+    - */node_modules/*
+  bootstrapFiles:
+    - phpstan-bootstrap.php
+  drupal:
+    drupal_root: ../../core
+    entityMapping:
+      ai_provider_llmd:
+        class: Drupal\ai_provider_llmd\Entity\LlmdProvider
+        storage: Drupal\ai_provider_llmd\LlmdProviderStorage
+  ignoreErrors:
+    # Ignore errors for Drupal's dynamic properties
+    - '#Access to an undefined property Drupal\\Core\\Entity\\EntityInterface::\$#'
+    # Ignore errors for Drupal's magic methods
+    - '#Call to an undefined method Drupal\\Core\\Entity\\EntityInterface::#'
