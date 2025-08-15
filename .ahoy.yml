@@ -1,0 +1,41 @@
+ahoyapi: v2
+commands:
+  lint:
+    usage: Run all PHP linting tools (phpcs, phpmd)
+    cmd: |
+      echo "Running PHP_CodeSniffer..."
+      vendor/bin/phpcs --standard=Drupal,DrupalPractice --extensions=php,module,inc,install,test,profile,theme,css,info,txt,md,yml src/
+      echo ""
+      echo "Running PHPMD..."
+      vendor/bin/phpmd src/ text phpmd.xml
+  
+  lint-phpcs:
+    usage: Run PHP_CodeSniffer with Drupal standards
+    cmd: vendor/bin/phpcs --standard=Drupal,DrupalPractice --extensions=php,module,inc,install,test,profile,theme,css,info,txt,md,yml src/
+  
+  lint-phpmd:
+    usage: Run PHP Mess Detector
+    cmd: vendor/bin/phpmd src/ text phpmd.xml
+  
+  lint-fix:
+    usage: Auto-fix PHP_CodeSniffer violations using phpcbf
+    cmd: vendor/bin/phpcbf --standard=Drupal,DrupalPractice --extensions=php,module,inc,install,test,profile,theme,css,info,txt,md,yml src/
+  
+  fix:
+    usage: Auto-fix PHP_CodeSniffer violations
+    cmd: vendor/bin/phpcbf --standard=Drupal,DrupalPractice --extensions=php,module,inc,install,test,profile,theme,css,info,txt,md,yml src/
+  
+  dump-autoload:
+    usage: Regenerate composer autoloader
+    cmd: composer dump-autoload --optimize
+  
+  install-lint-tools:
+    usage: Install PHP linting tools and Drupal standards
+    cmd: |
+      echo "Installing PHP linting tools..."
+      composer require --dev squizlabs/php_codesniffer phpmd/phpmd drupal/coder
+      echo ""
+      echo "Registering Drupal coding standards..."
+      vendor/bin/phpcs --config-set installed_paths vendor/drupal/coder/coder_sniffer
+      echo ""
+      echo "Linting tools installed successfully!"

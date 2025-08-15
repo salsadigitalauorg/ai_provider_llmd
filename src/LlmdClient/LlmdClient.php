@@ -2,6 +2,7 @@
 
 namespace Drupal\ai_provider_llmd\LlmdClient;
 
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\key\KeyRepositoryInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\RequestException;
@@ -11,20 +12,6 @@ use Psr\Http\Message\ResponseInterface;
  * LLM-d API client for distributed inference.
  */
 class LlmdClient {
-
-  /**
-   * The HTTP client.
-   *
-   * @var \GuzzleHttp\ClientInterface
-   */
-  protected ClientInterface $httpClient;
-
-  /**
-   * The key repository.
-   *
-   * @var \Drupal\key\KeyRepositoryInterface
-   */
-  protected KeyRepositoryInterface $keyRepository;
 
   /**
    * The base URL for the LLM-d orchestrator.
@@ -57,15 +44,14 @@ class LlmdClient {
   /**
    * Constructs a new LlmdClient.
    *
-   * @param \GuzzleHttp\ClientInterface $http_client
+   * @param \GuzzleHttp\ClientInterface $httpClient
    *   The HTTP client.
-   * @param \Drupal\key\KeyRepositoryInterface $key_repository
+   * @param \Drupal\key\KeyRepositoryInterface $keyRepository
    *   The key repository.
+   * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $logger
+   *   Logger.
    */
-  public function __construct(ClientInterface $http_client, KeyRepositoryInterface $key_repository) {
-    $this->httpClient = $http_client;
-    $this->keyRepository = $key_repository;
-  }
+  public function __construct(protected ClientInterface $httpClient, protected KeyRepositoryInterface $keyRepository, protected LoggerChannelFactoryInterface $logger) {}
 
   /**
    * Set the configuration for the client.
@@ -81,6 +67,9 @@ class LlmdClient {
    *
    * @throws \InvalidArgumentException
    *   If configuration parameters are invalid.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
+   * @SuppressWarnings(PHPMD.BooleanArgumentFlag)
    */
   public function setConfiguration(string $base_url, string $api_key_id, int $timeout = 30, bool $debug = FALSE): void {
     // Validate and sanitize base URL.
@@ -105,6 +94,8 @@ class LlmdClient {
    *
    * @throws \Exception
    *   If the request fails.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   public function getModels(): array {
     try {
@@ -126,7 +117,8 @@ class LlmdClient {
     }
     catch (RequestException $e) {
       if ($this->debug) {
-        \Drupal::logger('ai_provider_llmd')->error('Failed to get models: @error', ['@error' => $e->getMessage()]);
+        $this->logger->get('llmd')->error($e->getMessage());
+        $this->logger->get('ai_provider_llmd')->error('Failed to get models: @error', ['@error' => $e->getMessage()]);
       }
       throw new \Exception('Failed to retrieve models from LLM-d orchestrator: ' . $e->getMessage());
     }
@@ -143,6 +135,8 @@ class LlmdClient {
    *
    * @throws \Exception
    *   If the request fails.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   public function chatCompletion(array $payload): array {
     try {
@@ -151,7 +145,7 @@ class LlmdClient {
     }
     catch (RequestException $e) {
       if ($this->debug) {
-        \Drupal::logger('ai_provider_llmd')->error('Chat completion failed: @error', ['@error' => $e->getMessage()]);
+        $this->logger->get('ai_provider_llmd')->error('Chat completion failed: @error', ['@error' => $e->getMessage()]);
       }
       throw new \Exception('Chat completion failed: ' . $e->getMessage());
     }
@@ -168,6 +162,8 @@ class LlmdClient {
    *
    * @throws \Exception
    *   If the request fails.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   public function completion(array $payload): array {
     try {
@@ -176,7 +172,7 @@ class LlmdClient {
     }
     catch (RequestException $e) {
       if ($this->debug) {
-        \Drupal::logger('ai_provider_llmd')->error('Completion failed: @error', ['@error' => $e->getMessage()]);
+        $this->logger->get('ai_provider_llmd')->error('Completion failed: @error', ['@error' => $e->getMessage()]);
       }
       throw new \Exception('Completion failed: ' . $e->getMessage());
     }
@@ -193,6 +189,8 @@ class LlmdClient {
    *
    * @throws \Exception
    *   If the request fails.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   public function embeddings(array $payload): array {
     try {
@@ -201,7 +199,7 @@ class LlmdClient {
     }
     catch (RequestException $e) {
       if ($this->debug) {
-        \Drupal::logger('ai_provider_llmd')->error('Embeddings failed: @error', ['@error' => $e->getMessage()]);
+        $this->logger->get('ai_provider_llmd')->error('Embeddings failed: @error', ['@error' => $e->getMessage()]);
       }
       throw new \Exception('Embeddings failed: ' . $e->getMessage());
     }
@@ -221,7 +219,7 @@ class LlmdClient {
     }
     catch (RequestException $e) {
       if ($this->debug) {
-        \Drupal::logger('ai_provider_llmd')->error('Health check failed: @error', ['@error' => $e->getMessage()]);
+        $this->logger->get('ai_provider_llmd')->error('Health check failed: @error', ['@error' => $e->getMessage()]);
       }
       return FALSE;
     }
@@ -242,6 +240,8 @@ class LlmdClient {
    *
    * @throws \GuzzleHttp\Exception\RequestException
    *   If the request fails.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   protected function makeRequest(string $method, string $endpoint, ?array $payload = NULL): ResponseInterface {
     // Validate endpoint.
@@ -280,14 +280,14 @@ class LlmdClient {
 
     // Security logging for debugging (without sensitive data)
     if ($this->debug) {
-      \Drupal::logger('ai_provider_llmd')->debug('Making @method request to @url', [
+      $this->logger->get('ai_provider_llmd')->debug('Making @method request to @url', [
         '@method' => $method,
         '@url' => $url,
       ]);
     }
 
     // Log security events.
-    \Drupal::logger('ai_provider_llmd')->info('API request: @method @endpoint', [
+    $this->logger->get('ai_provider_llmd')->info('API request: @method @endpoint', [
       '@method' => $method,
       '@endpoint' => $endpoint,
     ]);
@@ -303,6 +303,8 @@ class LlmdClient {
    *
    * @throws \InvalidArgumentException
    *   If the URL is invalid or potentially malicious.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   private function validateAndSetBaseUrl(string $base_url): void {
     // Remove any trailing slashes.
@@ -343,6 +345,8 @@ class LlmdClient {
    *
    * @throws \InvalidArgumentException
    *   If the API key is invalid.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   private function validateAndSetApiKey(string $api_key_id): void {
     if (empty($api_key_id)) {
@@ -359,7 +363,7 @@ class LlmdClient {
       throw new \InvalidArgumentException('API key value is empty.');
     }
 
-    // Basic API key format validation (adjust as needed)
+    // Basic API key format validation (adjust as needed).
     if (strlen($api_key) < 8) {
       throw new \InvalidArgumentException('API key appears to be too short.');
     }
@@ -419,6 +423,8 @@ class LlmdClient {
    *
    * @return array
    *   The validated payload.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   private function sanitizePayload(array $payload): array {
     // Basic validation - ensure payload is not excessively large.

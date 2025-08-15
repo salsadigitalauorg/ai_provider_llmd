@@ -67,13 +67,6 @@ class LlmdConfigForm extends ConfigFormBase {
   /**
    * {@inheritdoc}
    */
-  protected function getEditableConfigNames(): array {
-    return [static::CONFIG_NAME];
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config(static::CONFIG_NAME);
 
@@ -164,6 +157,23 @@ class LlmdConfigForm extends ConfigFormBase {
   }
 
   /**
+   * Get available keys for the select options.
+   *
+   * @return array
+   *   Array of key options.
+   */
+  protected function getKeyOptions(): array {
+    $options = [];
+    $keys = $this->keyRepository->getKeys();
+
+    foreach ($keys as $key) {
+      $options[$key->id()] = $key->label();
+    }
+
+    return $options;
+  }
+
+  /**
    * Test the connection to the LLM-d orchestrator.
    *
    * @param array $form
@@ -177,21 +187,24 @@ class LlmdConfigForm extends ConfigFormBase {
     $timeout = $form_state->getValue('timeout');
 
     if (empty($host) || empty($api_key_id)) {
-      $this->messenger()->addError($this->t('Host URL and API key are required for testing.'));
+      $this->messenger()
+        ->addError($this->t('Host URL and API key are required for testing.'));
       return;
     }
 
-    // Additional security check for connection testing
+    // Additional security check for connection testing.
     if (!$this->currentUser()->hasPermission('administer ai providers')) {
-      $this->messenger()->addError($this->t('Insufficient permissions to test connection.'));
+      $this->messenger()
+        ->addError($this->t('Insufficient permissions to test connection.'));
       return;
     }
 
-    // Log security event
-    $this->logger('ai_provider_llmd')->info('Connection test attempted by user @uid for host @host', [
-      '@uid' => $this->currentUser()->id(),
-      '@host' => $host,
-    ]);
+    // Log security event.
+    $this->logger('ai_provider_llmd')
+      ->info('Connection test attempted by user @uid for host @host', [
+        '@uid' => $this->currentUser()->id(),
+        '@host' => $host,
+      ]);
 
     try {
       // Configure the client with form values.
@@ -199,47 +212,56 @@ class LlmdConfigForm extends ConfigFormBase {
 
       // Test health endpoint.
       if ($this->llmdClient->health()) {
-        $this->messenger()->addStatus($this->t('Successfully connected to LLM-d orchestrator.'));
+        $this->messenger()
+          ->addStatus($this->t('Successfully connected to LLM-d orchestrator.'));
 
         // Try to get models to verify full functionality.
         try {
           $models = $this->llmdClient->getModels();
           $model_count = count($models);
-          $this->messenger()->addStatus($this->t('Found @count available models.', ['@count' => $model_count]));
+          $this->messenger()
+            ->addStatus($this->t('Found @count available models.', ['@count' => $model_count]));
 
           if ($model_count > 0) {
             $model_names = array_column($models, 'id');
-            $this->messenger()->addStatus($this->t('Available models: @models', [
-              '@models' => implode(', ', array_slice($model_names, 0, 5)) . ($model_count > 5 ? '...' : '')
-            ]));
+            $this->messenger()
+              ->addStatus($this->t('Available models: @models', [
+                '@models' => implode(', ', array_slice($model_names, 0, 5)) . ($model_count > 5 ? '...' : ''),
+              ]));
           }
 
-          // Log successful connection
-          $this->logger('ai_provider_llmd')->info('Successful connection test to @host with @count models', [
-            '@host' => $host,
-            '@count' => $model_count,
-          ]);
+          // Log successful connection.
+          $this->logger('ai_provider_llmd')
+            ->info('Successful connection test to @host with @count models', [
+              '@host' => $host,
+              '@count' => $model_count,
+            ]);
         }
         catch (\Exception $e) {
-          $this->messenger()->addWarning($this->t('Connected to orchestrator but failed to retrieve models.'));
-          $this->logger('ai_provider_llmd')->warning('Connection test: Health OK but model retrieval failed for @host', [
-            '@host' => $host,
-          ]);
+          $this->messenger()
+            ->addWarning($this->t('Connected to orchestrator but failed to retrieve models.'));
+          $this->logger('ai_provider_llmd')
+            ->warning('Connection test: Health OK but model retrieval failed for @host', [
+              '@host' => $host,
+            ]);
         }
       }
       else {
-        $this->messenger()->addError($this->t('Failed to connect to LLM-d orchestrator. Health check failed.'));
-        $this->logger('ai_provider_llmd')->warning('Connection test failed: Health check failed for @host', [
-          '@host' => $host,
-        ]);
+        $this->messenger()
+          ->addError($this->t('Failed to connect to LLM-d orchestrator. Health check failed.'));
+        $this->logger('ai_provider_llmd')
+          ->warning('Connection test failed: Health check failed for @host', [
+            '@host' => $host,
+          ]);
       }
     }
     catch (\Exception $e) {
       $this->messenger()->addError($this->t('Connection test failed.'));
-      $this->logger('ai_provider_llmd')->error('Connection test failed for @host: @error', [
-        '@host' => $host,
-        '@error' => $e->getMessage(),
-      ]);
+      $this->logger('ai_provider_llmd')
+        ->error('Connection test failed for @host: @error', [
+          '@host' => $host,
+          '@error' => $e->getMessage(),
+        ]);
     }
   }
 
@@ -251,10 +273,10 @@ class LlmdConfigForm extends ConfigFormBase {
 
     $host = $form_state->getValue('host');
     if (!empty($host)) {
-      // Use Drupal's URL validation
+      // Use Drupal's URL validation.
       try {
         $url = Url::fromUri($host);
-        // Additional validation for external URLs
+        // Additional validation for external URLs.
         if (!$url->isExternal()) {
           $form_state->setErrorByName('host', $this->t('Please enter an external URL.'));
         }
@@ -266,7 +288,7 @@ class LlmdConfigForm extends ConfigFormBase {
 
     $api_key_id = $form_state->getValue('api_key');
     if (!empty($api_key_id)) {
-      // Validate that the key exists using Drupal's key management
+      // Validate that the key exists using Drupal's key management.
       $key = $this->keyRepository->getKey($api_key_id);
       if (!$key) {
         $form_state->setErrorByName('api_key', $this->t('The selected API key does not exist.'));
@@ -292,23 +314,6 @@ class LlmdConfigForm extends ConfigFormBase {
   }
 
   /**
-   * Get available keys for the select options.
-   *
-   * @return array
-   *   Array of key options.
-   */
-  protected function getKeyOptions(): array {
-    $options = [];
-    $keys = $this->keyRepository->getKeys();
-
-    foreach ($keys as $key) {
-      $options[$key->id()] = $key->label();
-    }
-
-    return $options;
-  }
-
-  /**
    * Refresh the cached models from the LLM-d orchestrator.
    *
    * @param array $form
@@ -321,11 +326,19 @@ class LlmdConfigForm extends ConfigFormBase {
     /** @var \Drupal\ai_provider_llmd\Plugin\AiProvider\LlmdAiProvider $llmd_provider */
     $llmd_provider = $this->providerManager->createInstance('llmd', $config->getRawData());
     try {
-     $llmd_provider->fetchModelsFromProvider();
+      $llmd_provider->fetchModelsFromProvider();
     }
     catch (\Exception $e) {
-      $this->messenger()->addError(sprintf('Failed to load models from LLM-d: %s', $e->getMessage()));
+      $this->messenger()
+        ->addError(sprintf('Failed to load models from LLM-d: %s', $e->getMessage()));
     }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function getEditableConfigNames(): array {
+    return [static::CONFIG_NAME];
   }
 
 }

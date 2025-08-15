@@ -11,13 +11,38 @@
   ],
   "require": {
     "drupal/core": "^10.2 || ^11",
-    "drupal/ai": "*",
+    "drupal/ai": "^1.0@alpha",
     "drupal/key": "*"
   },
+  "autoload": {
+    "psr-4": {
+      "Drupal\\ai_provider_llmd\\": "src/"
+    }
+  },
+  "require-dev": {
+    "squizlabs/php_codesniffer": "^3.7",
+    "phpmd/phpmd": "^2.13",
+    "drupal/coder": "^8.3"
+  },
+  "repositories": [
+    {
+      "type": "composer",
+      "url": "https://packages.drupal.org/8"
+    },
+    {
+      "type": "composer",
+      "url": "https://asset-packagist.org"
+    }
+  ],
   "extra": {
     "drupal": {
       "version": "1.0.0-dev",
       "datestamp": "1751770000"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
     }
   }
 }
