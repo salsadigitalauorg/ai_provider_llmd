@@ -4,3 +4,4 @@ services:
     arguments:
       - '@http_client'
       - '@key.repository'
+      - '@logger.factory'

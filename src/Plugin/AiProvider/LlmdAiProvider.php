@@ -159,6 +159,8 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
 
   /**
    * {@inheritdoc}
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   public function getConfiguredModels(?string $operation_type = NULL, array $capabilities = []): array {
     $cache_key = 'ai_provider_llmd:models';
@@ -210,6 +212,11 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
 
   /**
    * {@inheritdoc}
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
+   * @SuppressWarnings(PHPMD.CyclomaticComplexity)
+   * @SuppressWarnings(PHPMD.NPathComplexity)
+   * @SuppressWarnings(PHPMD.ExcessiveMethodLength)
    */
   public function chat(ChatInput|array|string $input, string $model_id, array $tags = []): ChatOutput {
     // Use Drupal's validation for model_id.
@@ -334,6 +341,9 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
 
   /**
    * {@inheritdoc}
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
+   * @SuppressWarnings(PHPMD.NPathComplexity)
    */
   public function embeddings(string|EmbeddingsInput $input, string $model_id, array $tags = []): EmbeddingsOutput {
     // Use Drupal's validation for model_id.
@@ -350,9 +360,9 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
 
     // Use Drupal's text processing.
     $input = Html::decodeEntities($input);
-    $input = Unicode::truncate($input, 102400, TRUE, TRUE); // 100KB limit
+    $input = Unicode::truncate($input, 102400, TRUE, TRUE);
 
-    // Skip empty input
+    // Skip empty input.
     if (empty(trim($input))) {
       throw new \InvalidArgumentException('Empty input provided for embeddings.');
     }
@@ -509,6 +519,8 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
 
   /**
    * Load and configure the LLM-d client.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
    */
   protected function loadClient(): void {
     $config = $this->getConfig();
