@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Drupal\ai_provider_llmd\Plugin\AiProvider;
 
 use Drupal\ai\Attribute\AiProvider;
@@ -231,7 +233,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       $input = Html::decodeEntities($input);
       $input = Unicode::truncate($input, 102400, TRUE, TRUE);
       $input = new ChatInput([
-        new ChatMessage('user', $input)
+        new ChatMessage('user', $input),
       ]);
     }
     elseif (is_array($input)) {
@@ -244,7 +246,7 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
           $content = Html::decodeEntities($message['content']);
           $content = Unicode::truncate($content, 102400, TRUE, TRUE);
 
-          // Validate role against allowed values
+          // Validate role against allowed values.
           $allowed_roles = ['system', 'user', 'assistant', 'function'];
           if (!in_array(strtolower($role), $allowed_roles)) {
             // Default to user role.
