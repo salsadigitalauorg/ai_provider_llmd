@@ -131,7 +131,6 @@ class LlmdCommands extends DrushCommands {
           $rows
         );
 
-        // Test chat completion endpoint
         $this->logger()->notice(dt('Testing chat completion endpoint...'));
 
         $test_model = 'mistral-7b';

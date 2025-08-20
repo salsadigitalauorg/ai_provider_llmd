@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Drupal\ai_provider_llmd\Form;
 
 use Drupal\ai\AiProviderPluginManager;
