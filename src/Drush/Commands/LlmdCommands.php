@@ -113,9 +113,14 @@ class LlmdCommands extends DrushCommands {
         }
         $this->logger()->success(dt('✓ Found @count available models:', ['@count' => $model_count]));
         $rows = [];
+        $mistral_available = FALSE;
         foreach ($models as $model) {
+          $model_id = $model['id'] ?? 'N/A';
+          if ($model_id === 'mistral-7b') {
+            $mistral_available = TRUE;
+          }
           $rows[] = [
-            $model['id'] ?? 'N/A',
+            $model_id,
             $model['name'] ?? $model['id'] ?? 'N/A',
             isset($model['context_length']) ? number_format($model['context_length']) : 'N/A',
             $model['owned_by'] ?? 'N/A',
@@ -125,6 +130,42 @@ class LlmdCommands extends DrushCommands {
           ['Model ID', 'Name', 'Context Length', 'Owned By'],
           $rows
         );
+
+        // Test chat completion endpoint
+        $this->logger()->notice(dt('Testing chat completion endpoint...'));
+
+        $test_model = 'mistral-7b';
+        if (!$mistral_available) {
+          $this->logger()->warning(dt('Model @model not available. Skipping chat completion test.', ['@model' => $test_model]));
+        }
+        else {
+          $this->logger()->notice(dt('Using model: @model', ['@model' => $test_model]));
+
+          try {
+            $payload = [
+              'model' => $test_model,
+              'messages' => [
+                [
+                  'role' => 'user',
+                  'content' => 'Can you give me information about Australian industry?',
+                ],
+              ],
+              'stream' => FALSE,
+            ];
+
+            $response = $this->llmdClient->chatCompletion($payload);
+
+            if ($response) {
+              $this->logger()->success(dt('✓ Chat completion endpoint test successful'));
+            }
+            else {
+              $this->logger()->error(dt('✗ Chat completion endpoint test failed: No response received'));
+            }
+          }
+          catch (\Exception $e) {
+            $this->logger()->error(dt('✗ Chat completion endpoint test failed: @error', ['@error' => $e->getMessage()]));
+          }
+        }
       }
       catch (\Exception $e) {
         $this->logger()->warning(dt('Connected to orchestrator but failed to retrieve models.'));
@@ -136,4 +177,5 @@ class LlmdCommands extends DrushCommands {
       $this->logger()->error(dt('Please check your configuration and network connectivity.'));
     }
   }
+
 }
