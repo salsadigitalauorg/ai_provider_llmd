@@ -141,13 +141,19 @@ class LlmdClient {
   public function chatCompletion(array $payload): array {
     try {
       $response = $this->makeRequest('POST', '/v1/chat/completions', $payload);
-      return json_decode($response->getBody()->getContents(), TRUE);
+      $body = $response->getBody()->getContents();
+      return json_decode($body, TRUE, 512, JSON_THROW_ON_ERROR);
     }
     catch (RequestException $e) {
-      if ($this->debug) {
-        $this->logger->get('ai_provider_llmd')->error('Chat completion failed: @error', ['@error' => $e->getMessage()]);
-      }
+      $this->logger->get('ai_provider_llmd')->error('Chat completion failed: @error', ['@error' => $e->getMessage()]);
       throw new \Exception('Chat completion failed: ' . $e->getMessage());
+    }
+    catch (\JsonException $e) {
+      $logger = $this->logger->get('ai_provider_llmd');
+      $logger->error('Invalid (broken JSON) response reeceived: @body ', [
+        '@body' => $body ?? 'No valid body received in response',
+      ]);
+      $logger->error('JSON error: @error reported', ['@error' => $e->getMessage()]);
     }
   }
 

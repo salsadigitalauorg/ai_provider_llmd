@@ -130,10 +130,34 @@ class LlmdCommands extends DrushCommands {
         $this->logger()->warning(dt('Connected to orchestrator but failed to retrieve models.'));
         $this->logger()->error(dt('Error: @error', ['@error' => $e->getMessage()]));
       }
+
+      $this->logger()->notice(dt('Testing chat completion endpoint...'));
+      try {
+        $payload = [
+          'model' => 'mistral-7b',
+          'messages' => [
+            [
+              'role' => 'user',
+              'content' => 'Can you give me information about Australian industry?',
+            ],
+          ],
+          'stream' => FALSE,
+        ];
+
+        $response = $this->llmdClient->chatCompletion($payload);
+
+        if ($response) {
+          $this->logger()->success(dt('✓ Chat completion endpoint test successful'));
+        }
+      }
+      catch (\Exception $e) {
+        $this->logger()->error(dt('✗ Chat completion endpoint test failed: @error', ['@error' => $e->getMessage()]));
+      }
     }
     catch (\Exception $e) {
       $this->logger()->error(dt('✗ Connection test failed: @error', ['@error' => $e->getMessage()]));
       $this->logger()->error(dt('Please check your configuration and network connectivity.'));
     }
   }
+
 }
