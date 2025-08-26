@@ -429,6 +429,123 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
   }
 
   /**
+   * Streaming chat completion method.
+   *
+   * @param ChatInput|array|string $input
+   *   The chat input.
+   * @param string $model_id
+   *   The model ID to use.
+   * @param array $tags
+   *   Optional tags for tracking.
+   *
+   * @return \Generator
+   *   Generator yielding streaming chat response chunks.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
+   * @SuppressWarnings(PHPMD.CyclomaticComplexity)
+   * @SuppressWarnings(PHPMD.NPathComplexity)
+   * @SuppressWarnings(PHPMD.ExcessiveMethodLength)
+   */
+  public function streamingChat(ChatInput|array|string $input, string $model_id, array $tags = []): \Generator {
+    // Use Drupal's validation for model_id.
+    if (empty($model_id) || !preg_match('/^[a-zA-Z0-9._-]+$/', $model_id) || strlen($model_id) > 100) {
+      throw new \InvalidArgumentException('Invalid model ID provided.');
+    }
+
+    $this->loadClient();
+
+    // Convert input to ChatInput object if needed.
+    if (is_string($input)) {
+      $input = Html::decodeEntities($input);
+      $input = Unicode::truncate($input, 102400, TRUE, TRUE);
+      $input = new ChatInput([
+        new ChatMessage('user', $input),
+      ]);
+    }
+    elseif (is_array($input)) {
+      // Convert array to ChatInput with Drupal validation.
+      $chat_messages = [];
+      foreach ($input as $message) {
+        if (is_array($message) && isset($message['role'], $message['content'])) {
+          // Use Drupal's built-in validation.
+          $role = Html::escape(trim($message['role']));
+          $content = Html::decodeEntities($message['content']);
+          $content = Unicode::truncate($content, 102400, TRUE, TRUE);
+
+          // Validate role against allowed values.
+          $allowed_roles = ['system', 'user', 'assistant', 'function'];
+          if (!in_array(strtolower($role), $allowed_roles)) {
+            // Default to user role.
+            $role = 'user';
+          }
+
+          $chat_messages[] = new ChatMessage($role, $content);
+        }
+      }
+      $input = new ChatInput($chat_messages);
+    }
+
+    // Convert ChatInput to LLM-d API format.
+    $messages = [];
+    foreach ($input->getMessages() as $message) {
+      $role = $message->getRole();
+      $content = $message->getText();
+
+      // Skip empty messages.
+      if (empty($role) || empty(trim($content))) {
+        continue;
+      }
+
+      $messages[] = [
+        'role' => $role,
+        'content' => $content,
+      ];
+    }
+
+    // Ensure we have at least one valid message.
+    if (empty($messages)) {
+      throw new \InvalidArgumentException('No valid messages provided for chat completion.');
+    }
+
+    // Build the payload for streaming.
+    $payload = [
+      'model' => $model_id,
+      'messages' => $messages,
+      'stream' => TRUE,
+    ];
+
+    // Add optional parameters from provider configuration.
+    $provider_config = $this->getConfiguration();
+    if (!empty($provider_config)) {
+      $allowed_params = [
+        'temperature',
+        'max_tokens',
+        'top_p',
+        'frequency_penalty',
+        'presence_penalty',
+        'stop',
+      ];
+      foreach ($allowed_params as $param) {
+        if (isset($provider_config[$param])) {
+          $payload[$param] = $provider_config[$param];
+        }
+      }
+    }
+
+    try {
+      // Use the streaming client method and yield chunks.
+      foreach ($this->llmdClient->streamingChatCompletion($payload) as $chunk) {
+        yield $chunk;
+      }
+    }
+    catch (\Exception $e) {
+      $this->loggerFactory->get('ai_provider_llmd')
+        ->error('LLM-d streaming chat completion failed: @error', ['@error' => $e->getMessage()]);
+      throw new \Exception('Streaming chat completion failed: ' . $e->getMessage());
+    }
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function embeddingsVectorSize(string $model_id): int {

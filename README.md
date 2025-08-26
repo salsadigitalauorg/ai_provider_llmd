@@ -10,6 +10,7 @@ LLM-d (Large Language Model daemon) is a distributed inference framework that al
 
 - **Distributed Model Support**: Connect to multiple LLM models through a single orchestrator
 - **OpenAI-Compatible API**: Uses standard OpenAI API format for compatibility
+- **Real-Time Streaming**: Server-Sent Events (SSE) streaming for real-time token delivery
 - **Embeddings Support**: Generate text embeddings for vector database integration
 - **Vector Database Integration**: Compatible with Milvus and PostgreSQL vector databases
 - **Health Monitoring**: Connection testing and health check capabilities
@@ -50,12 +51,73 @@ LLM-d (Large Language Model daemon) is a distributed inference framework that al
 
 Currently supports:
 - **Chat Completions**: Conversational AI with message history
+- **Streaming Chat Completions**: Real-time token streaming using Server-Sent Events (SSE)
 - **Embeddings**: Text-to-vector conversion for semantic search and similarity matching
 
 ## Usage
 
 ### Chat Operations
 Once configured, LLM-d models will be available in the AI module's model selection for chat operations.
+
+### 🔄 Streaming Operations
+The LLM-d provider supports real-time token streaming for immediate response delivery:
+
+#### Using the Streaming Client Methods
+
+```php
+// Get the LLM-d provider service
+$provider = \Drupal::service('ai.provider.llmd');
+
+// Create a ChatInput with your messages
+$input = new ChatInput([
+  new ChatMessage('user', 'Tell me a short story about artificial intelligence')
+]);
+
+// Use streaming chat method for real-time responses
+foreach ($provider->streamingChat($input, 'mistral-7b') as $chunk) {
+  // Process each streaming chunk as it arrives
+  $content = $chunk['choices'][0]['delta']['content'] ?? '';
+  if ($content) {
+    echo $content; // Output token immediately
+    flush();
+  }
+}
+```
+
+#### Direct Streaming Client Usage
+
+```php
+// Access the LLM-d client directly
+$client = \Drupal::service('ai_provider_llmd.client');
+
+// Configure client connection
+$client->setConfiguration($host, $api_key, $timeout, $debug);
+
+// Create streaming payload
+$payload = [
+  'model' => 'mistral-7b',
+  'messages' => [
+    ['role' => 'user', 'content' => 'Write a poem about technology']
+  ],
+  'stream' => true,
+  'max_tokens' => 150
+];
+
+// Stream tokens in real-time
+foreach ($client->streamingChatCompletion($payload) as $chunk) {
+  // Handle each streaming chunk
+  if (isset($chunk['choices'][0]['delta']['content'])) {
+    echo $chunk['choices'][0]['delta']['content'];
+    flush();
+  }
+}
+```
+
+#### Benefits of Streaming
+- **Immediate Feedback**: Tokens appear as soon as they're generated
+- **Better User Experience**: No waiting for complete response
+- **Lower Perceived Latency**: Users see progress immediately
+- **OpenAI Compatible**: Works with standard streaming patterns
 
 ### Vector Database Integration
 For semantic search and vector similarity operations:
@@ -82,9 +144,15 @@ This provider connects to an LLM-d orchestrator that provides:
 ### Required Endpoints
 Your LLM-d orchestrator must implement these OpenAI-compatible endpoints:
 - `/v1/models` - List available models
-- `/v1/chat/completions` - Chat completions
+- `/v1/chat/completions` - Chat completions (supports both streaming and non-streaming)
 - `/v1/embeddings` - Text embeddings (for vector database support)
 - `/health` - Health check
+
+#### Streaming Support
+The `/v1/chat/completions` endpoint supports streaming when:
+- Request includes `"stream": true` parameter
+- Request includes `Accept: text/event-stream` header
+- Response uses Server-Sent Events (SSE) format with `data:` prefixed chunks
 
 ## Troubleshooting
 
@@ -96,7 +164,12 @@ Your LLM-d orchestrator must implement these OpenAI-compatible endpoints:
    - Ensure your LLM-d orchestrator implements `/v1/embeddings` endpoint
    - Verify embedding model dimensions match your vector database configuration
    - Check that embedding models are properly loaded in your orchestrator
-6. **Vector Database Issues**:
+6. **Streaming Issues**:
+   - Verify your LLM-d orchestrator supports SSE streaming
+   - Check that ALB/load balancer timeout settings allow streaming (900s+ recommended)
+   - Ensure PHP `max_execution_time` allows for streaming duration
+   - Test streaming with curl: `curl -H "Accept: text/event-stream" -d '{"stream":true,...}' endpoint`
+7. **Vector Database Issues**:
    - Verify vector database provider modules are installed and configured
    - Ensure collection dimensions match embedding model output dimensions
    - Check vector database connectivity and permissions

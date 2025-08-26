@@ -160,6 +160,101 @@ class LlmdClient {
   }
 
   /**
+   * Create a streaming chat completion.
+   *
+   * @param array $payload
+   *   The chat completion payload.
+   * @param callable|null $onToken
+   *   Optional callback function called for each token.
+   *
+   * @return \Generator
+   *   Generator yielding streaming response chunks.
+   *
+   * @throws \Exception
+   *   If the request fails.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
+   */
+  public function streamingChatCompletion(array $payload, ?callable $onToken = NULL): \Generator {
+    // Force streaming mode
+    $payload['stream'] = TRUE;
+    
+    try {
+      $response = $this->makeStreamingRequest('POST', '/v1/chat/completions', $payload);
+      $fullContent = '';
+      
+      $body = $response->getBody();
+      
+      while (!$body->eof()) {
+        $line = $this->readLine($body);
+        
+        if (strpos($line, 'data: ') === 0) {
+          $data = substr($line, 6);
+          
+          if (trim($data) === '[DONE]') {
+            break;
+          }
+          
+          try {
+            $chunkData = json_decode($data, TRUE, 512, JSON_THROW_ON_ERROR);
+            
+            if ($chunkData && isset($chunkData['choices'][0]['delta']['content'])) {
+              $token = $chunkData['choices'][0]['delta']['content'];
+              $fullContent .= $token;
+              
+              // Call token handler if provided
+              if ($onToken) {
+                $onToken($token, $fullContent, $chunkData);
+              }
+              
+              yield [
+                'token' => $token,
+                'content' => $fullContent,
+                'data' => $chunkData,
+              ];
+            }
+            elseif ($chunkData && isset($chunkData['error'])) {
+              // Handle error chunks
+              throw new \Exception('Streaming error: ' . ($chunkData['error']['message'] ?? 'Unknown error'));
+            }
+          }
+          catch (\JsonException $e) {
+            $this->logger->get('ai_provider_llmd')->warning('Invalid JSON in streaming chunk: @data', ['@data' => $data]);
+            continue;
+          }
+        }
+      }
+      
+    }
+    catch (RequestException $e) {
+      // Log the detailed error for debugging
+      $this->logger->get('ai_provider_llmd')->error('Streaming chat completion failed: @error', [
+        '@error' => $e->getMessage(),
+        'response_body' => $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : 'No response body'
+      ]);
+      
+      throw new \Exception('Streaming chat completion failed: ' . $e->getMessage());
+    }
+  }
+
+  /**
+   * Read a line from a stream.
+   *
+   * @param \Psr\Http\Message\StreamInterface $stream
+   *   The stream to read from.
+   *
+   * @return string
+   *   The line content.
+   */
+  private function readLine($stream): string {
+    $line = '';
+    while (($char = $stream->read(1)) !== '' && $char !== "\n") {
+      $line .= $char;
+    }
+    return rtrim($line, "\r");
+  }
+
+  /**
    * Create a text completion.
    *
    * @param array $payload
@@ -296,6 +391,79 @@ class LlmdClient {
 
     // Log security events.
     $this->logger->get('ai_provider_llmd')->info('API request: @method @endpoint', [
+      '@method' => $method,
+      '@endpoint' => $endpoint,
+    ]);
+
+    return $this->httpClient->request($method, $url, $options);
+  }
+
+  /**
+   * Make a streaming HTTP request to the LLM-d orchestrator.
+   *
+   * @param string $method
+   *   The HTTP method.
+   * @param string $endpoint
+   *   The API endpoint.
+   * @param array|null $payload
+   *   The request payload.
+   *
+   * @return \Psr\Http\Message\ResponseInterface
+   *   The HTTP response.
+   *
+   * @throws \GuzzleHttp\Exception\RequestException
+   *   If the request fails.
+   *
+   * @SuppressWarnings(PHPMD.MissingImport)
+   */
+  protected function makeStreamingRequest(string $method, string $endpoint, ?array $payload = NULL): ResponseInterface {
+    // Validate endpoint.
+    if (!$this->isValidEndpoint($endpoint)) {
+      throw new \InvalidArgumentException('Invalid API endpoint provided.');
+    }
+
+    // Sanitize payload.
+    if ($payload !== NULL) {
+      $payload = $this->sanitizePayload($payload);
+    }
+
+    $options = [
+      'timeout' => 300,  // Longer timeout for streaming
+      'stream' => TRUE,  // Enable streaming
+      'headers' => [
+        'Content-Type' => 'application/json',
+        'Accept' => 'text/event-stream',
+        'Cache-Control' => 'no-cache',
+        'User-Agent' => 'Drupal-AI-Provider-LLMd/1.0',
+        'X-Content-Type-Options' => 'nosniff',
+        'X-Frame-Options' => 'DENY',
+      ],
+      // Enforce SSL certificate verification.
+      'verify' => TRUE,
+    ];
+
+    // Add API key if available.
+    if (!empty($this->apiKey)) {
+      $options['headers']['X-API-Key'] = $this->apiKey;
+    }
+
+    // Add JSON payload for POST requests.
+    if ($payload !== NULL) {
+      $options['json'] = $payload;
+    }
+
+    $url = $this->baseUrl . $endpoint;
+
+    // Security logging for debugging (without sensitive data)
+    if ($this->debug) {
+      $this->logger->get('ai_provider_llmd')->debug('Making streaming @method request to @url', [
+        '@method' => $method,
+        '@url' => $url,
+      ]);
+    }
+
+    // Log security events.
+    $this->logger->get('ai_provider_llmd')->info('Streaming API request: @method @endpoint', [
       '@method' => $method,
       '@endpoint' => $endpoint,
     ]);
