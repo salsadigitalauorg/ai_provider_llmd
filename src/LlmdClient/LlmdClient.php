@@ -432,7 +432,6 @@ class LlmdClient {
       'stream' => TRUE,  // Enable streaming
       'headers' => [
         'Content-Type' => 'application/json',
-        'Accept' => 'text/event-stream',
         'Cache-Control' => 'no-cache',
         'User-Agent' => 'Drupal-AI-Provider-LLMd/1.0',
         'X-Content-Type-Options' => 'nosniff',

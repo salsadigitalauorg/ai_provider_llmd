@@ -151,7 +151,6 @@ Your LLM-d orchestrator must implement these OpenAI-compatible endpoints:
 #### Streaming Support
 The `/v1/chat/completions` endpoint supports streaming when:
 - Request includes `"stream": true` parameter
-- Request includes `Accept: text/event-stream` header
 - Response uses Server-Sent Events (SSE) format with `data:` prefixed chunks
 
 ## Troubleshooting
@@ -168,7 +167,7 @@ The `/v1/chat/completions` endpoint supports streaming when:
    - Verify your LLM-d orchestrator supports SSE streaming
    - Check that ALB/load balancer timeout settings allow streaming (900s+ recommended)
    - Ensure PHP `max_execution_time` allows for streaming duration
-   - Test streaming with curl: `curl -H "Accept: text/event-stream" -d '{"stream":true,...}' endpoint`
+   - Test streaming with curl: `curl -d '{"stream":true,...}' endpoint`
 7. **Vector Database Issues**:
    - Verify vector database provider modules are installed and configured
    - Ensure collection dimensions match embedding model output dimensions

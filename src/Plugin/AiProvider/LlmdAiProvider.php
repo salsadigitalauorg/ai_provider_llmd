@@ -281,11 +281,15 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
       throw new \InvalidArgumentException('No valid messages provided for chat completion.');
     }
 
+    // Check if streaming is enabled in configuration.
+    $config = $this->getConfig();
+    $streaming_enabled = $config->get('streaming_enabled') !== FALSE;
+
     // Build the payload.
     $payload = [
       'model' => $model_id,
       'messages' => $messages,
-      'stream' => FALSE,
+      'stream' => $streaming_enabled,
     ];
 
     // Add optional parameters from provider configuration.
@@ -307,26 +311,59 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
     }
 
     try {
-      $response = $this->llmdClient->chatCompletion($payload);
+      if ($streaming_enabled) {
+        // Use streaming client method and collect all chunks
+        $full_content = '';
+        $last_response = NULL;
+        
+        foreach ($this->llmdClient->streamingChatCompletion($payload) as $chunk) {
+          $last_response = $chunk;
+          if (isset($chunk['choices'][0]['delta']['content'])) {
+            $full_content .= $chunk['choices'][0]['delta']['content'];
+          }
+        }
+        
+        if ($last_response && isset($last_response['choices'])) {
+          $response_message = new ChatMessage('assistant', $full_content);
+          $metadata = [
+            'model' => $last_response['model'] ?? $model_id,
+            'usage' => $last_response['usage'] ?? [],
+            'finish_reason' => $last_response['choices'][0]['finish_reason'] ?? 'stop',
+          ];
 
-      if (isset($response['choices']) && !empty($response['choices'])) {
-        $choice = $response['choices'][0];
-        $message_content = $choice['message']['content'] ?? '';
-        $response_message = new ChatMessage('assistant', $message_content);
-        $metadata = [
-          'model' => $response['model'] ?? $model_id,
-          'usage' => $response['usage'] ?? [],
-          'finish_reason' => $choice['finish_reason'] ?? 'stop',
-        ];
-
-        return new ChatOutput(
-          $response_message,
-          $response,
-          $metadata
-        );
+          return new ChatOutput(
+            $response_message,
+            $last_response,
+            $metadata
+          );
+        }
+        else {
+          throw new \Exception('No response received from LLM-d streaming');
+        }
       }
       else {
-        throw new \Exception('No response choices returned from LLM-d');
+        // Use non-streaming client method
+        $response = $this->llmdClient->chatCompletion($payload);
+
+        if (isset($response['choices']) && !empty($response['choices'])) {
+          $choice = $response['choices'][0];
+          $message_content = $choice['message']['content'] ?? '';
+          $response_message = new ChatMessage('assistant', $message_content);
+          $metadata = [
+            'model' => $response['model'] ?? $model_id,
+            'usage' => $response['usage'] ?? [],
+            'finish_reason' => $choice['finish_reason'] ?? 'stop',
+          ];
+
+          return new ChatOutput(
+            $response_message,
+            $response,
+            $metadata
+          );
+        }
+        else {
+          throw new \Exception('No response choices returned from LLM-d');
+        }
       }
     }
     catch (\Exception $e) {
