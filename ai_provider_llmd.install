@@ -1,0 +1,24 @@
+<?php
+
+/**
+ * @file
+ * Install and update hooks for the LLM-d AI Provider module.
+ */
+
+/**
+ * Enable streaming by default for existing installations (v1.1.0-beta1).
+ */
+function ai_provider_llmd_update_11001() {
+  $config = \Drupal::configFactory()->getEditable('ai_provider_llmd.settings');
+  
+  // Set streaming_enabled to TRUE if it hasn't been set yet
+  if ($config->get('streaming_enabled') === NULL) {
+    $config->set('streaming_enabled', TRUE)->save();
+    
+    \Drupal::logger('ai_provider_llmd')->info('Streaming enabled by default in update 11001 (v1.1.0-beta1)');
+    
+    return t('Streaming has been enabled by default for LLM-d AI Provider v1.1.0-beta1.');
+  }
+  
+  return t('Streaming setting was already configured for LLM-d AI Provider.');
+}
