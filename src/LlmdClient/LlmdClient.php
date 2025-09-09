@@ -78,9 +78,7 @@ class LlmdClient {
     $this->validateAndSetBaseUrl($base_url);
 
     // Validate timeout (between 1 and 300 seconds)
-    if ($timeout < 1 || $timeout > 300) {
-      throw new \InvalidArgumentException('Timeout must be between 1 and 300 seconds.');
-    }
+
     $this->timeout = $timeout;
     $this->debug = $debug;
 

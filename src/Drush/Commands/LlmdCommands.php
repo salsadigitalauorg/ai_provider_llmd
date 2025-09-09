@@ -61,9 +61,10 @@ class LlmdCommands extends DrushCommands {
    * Test the connection to the LLM-d orchestrator.
    */
   #[CLI\Command(name: 'ai_provider_llmd:test', aliases: ['llmd:test', 'llmd-test'])]
+  #[CLI\Option(name: 'model', description: 'The model to test chat / connection with. Defaults to "mistral-7b".')]
   #[CLI\Usage(name: 'drush ai_provider_llmd:test', description: 'Tests the connection to the LLM-d orchestrator and lists available models.')]
   #[CLI\Bootstrap(level: DrupalBootLevels::FULL)]
-  public function testConnection(): void {
+  public function testConnection($options = ['model' => 'qwen3-4b']): void {
     $config = $this->configFactory->get(static::CONFIG_NAME);
     $host = $config->get('host');
     $api_key_id = $config->get('api_key');
@@ -113,11 +114,11 @@ class LlmdCommands extends DrushCommands {
         }
         $this->logger()->success(dt('✓ Found @count available models:', ['@count' => $model_count]));
         $rows = [];
-        $mistral_available = FALSE;
+        $model_available = FALSE;
         foreach ($models as $model) {
           $model_id = $model['id'] ?? 'N/A';
-          if ($model_id === 'mistral-7b') {
-            $mistral_available = TRUE;
+          if ($model_id === $options['model']) {
+            $model_available = TRUE;
           }
           $rows[] = [
             $model_id,
@@ -133,16 +134,15 @@ class LlmdCommands extends DrushCommands {
 
         $this->logger()->notice(dt('Testing chat completion endpoint...'));
 
-        $test_model = 'mistral-7b';
-        if (!$mistral_available) {
-          $this->logger()->warning(dt('Model @model not available. Skipping chat completion test.', ['@model' => $test_model]));
+        if (!$model_available) {
+          $this->logger()->warning(dt('Model @model not available. Skipping chat completion test.', ['@model' => $options['model']]));
         }
         else {
-          $this->logger()->notice(dt('Using model: @model', ['@model' => $test_model]));
+          $this->logger()->notice(dt('Using model: @model', ['@model' => $options['model']]));
 
           try {
             $payload = [
-              'model' => $test_model,
+              'model' => $options['model'],
               'messages' => [
                 [
                   'role' => 'user',
@@ -151,11 +151,14 @@ class LlmdCommands extends DrushCommands {
               ],
               'stream' => FALSE,
             ];
-
+            $time_start = microtime(TRUE);
             $response = $this->llmdClient->chatCompletion($payload);
-
+            $time_end = microtime(TRUE);
+            $time_elapsed = ($time_end - $time_start);
             if ($response) {
-              $this->logger()->success(dt('✓ Chat completion endpoint test successful'));
+              $this->logger()->success(dt('✓ Chat completion endpoint test successful. Took @time_elapsed seconds', ['@time_elapsed' => number_format($time_elapsed, 2)]));
+
+              $this->logger()->notice(dt('Response:' . PHP_EOL . '@response', ['@response' => $response]));
             }
             else {
               $this->logger()->error(dt('✗ Chat completion endpoint test failed: No response received'));
