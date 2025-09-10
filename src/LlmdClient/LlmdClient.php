@@ -107,6 +107,9 @@ class LlmdClient {
           return [
             'id' => $model['id'],
             'object' => $model['object'] ?? 'model',
+            'description' => $model['metadata']['description'] ?? NULL,
+            'max_tokens' => $model['metadata']['max_tokens'] ?? NULL,
+            'dimensions' => $model['metadata']['dimensions'] ?? NULL,
             'created' => $model['created'] ?? time(),
             'owned_by' => $model['owned_by'] ?? 'llm-d',
           ];
