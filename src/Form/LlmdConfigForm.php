@@ -107,7 +107,7 @@ class LlmdConfigForm extends ConfigFormBase {
       '#description' => $this->t('Timeout in seconds for API requests.'),
       '#default_value' => $config->get('timeout') ?: 30,
       '#min' => 1,
-      '#max' => 300,
+      '#max' => 7200,
       '#required' => TRUE,
     ];
 

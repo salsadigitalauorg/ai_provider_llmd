@@ -434,16 +434,19 @@ class LlmdAiProvider extends AiProviderClientBase implements ChatInterface, Embe
   public function embeddingsVectorSize(string $model_id): int {
     // Default vector size mappings for common embedding models.
     // This should be updated based on your LLM-d model configuration.
-    return match ($model_id) {
-      'text-embedding-ada-002', 'text-embedding-3-small' => 1536,
-      'text-embedding-3-large' => 3072,
-      'all-MiniLM-L6-v2' => 384,
-      'all-mpnet-base-v2' => 768,
-      'sentence-transformers/all-MiniLM-L6-v2' => 384,
-      'sentence-transformers/all-mpnet-base-v2' => 768,
-      // Default to common size.
-      default => 1536,
-    };
+    $this->loadClient();
+    $models = array_filter($this->llmdClient->getModels(), function ($model) use ($model_id) {
+      return $model['id'] === $model_id;
+    });
+    $model = reset($models);
+    if (!$model || (empty($model['dimensions']) || (int) $model['dimensions'] === 0)) {
+      return match ($model_id) {
+        'mxbai-embed-large' => 1024,
+        default => 1024,
+      };
+    }
+
+    return (int) $model['dimensions'];
   }
 
   /**
