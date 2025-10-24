@@ -186,7 +186,7 @@ class LlmdConfigForm extends ConfigFormBase {
   public function testConnection(array &$form, FormStateInterface $form_state): void {
     $host = $form_state->getValue('host');
     $api_key_id = $form_state->getValue('api_key');
-    $timeout = $form_state->getValue('timeout');
+    $timeout = (int) $form_state->getValue('timeout');
 
     if (empty($host) || empty($api_key_id)) {
       $this->messenger()
