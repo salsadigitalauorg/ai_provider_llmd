@@ -11,6 +11,9 @@ ai_provider_llmd.settings:
     timeout:
       type: integer
       label: 'Request timeout in seconds'
+    streaming_enabled:
+      type: boolean
+      label: 'Enable streaming responses'
     debug:
       type: boolean
       label: 'Enable debug logging'

@@ -111,6 +111,13 @@ class LlmdConfigForm extends ConfigFormBase {
       '#required' => TRUE,
     ];
 
+    $form['connection']['streaming_enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Enable Streaming'),
+      '#description' => $this->t('Enable real-time streaming responses for chat completions. When enabled, chat responses will be streamed token-by-token as they are generated.'),
+      '#default_value' => $config->get('streaming_enabled') ?: TRUE,
+    ];
+
     $form['debug'] = [
       '#type' => 'details',
       '#title' => $this->t('Debug Settings'),
@@ -309,6 +316,7 @@ class LlmdConfigForm extends ConfigFormBase {
       ->set('host', $form_state->getValue('host'))
       ->set('api_key', $form_state->getValue('api_key'))
       ->set('timeout', $form_state->getValue('timeout'))
+      ->set('streaming_enabled', $form_state->getValue('streaming_enabled'))
       ->set('debug', $form_state->getValue('debug'))
       ->save();
 
